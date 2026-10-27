@@ -63,14 +63,43 @@ header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92
 .icon-btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .search{padding:0 var(--gutter-r) 8px var(--gutter-l);max-width:860px;margin:0 auto}
 .search input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;font-size:16px}
-.strip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px var(--gutter-r) 8px var(--gutter-l);max-width:860px;margin:0 auto;scroll-snap-type:x proximity}
-.strip::-webkit-scrollbar{display:none}
-.day{flex:0 0 auto;scroll-snap-align:start;border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:6px 10px;min-width:62px;text-align:center;cursor:pointer;line-height:1.25}
-.day b{display:block;font:500 16px/1.2 var(--f-mono)}
-.day span{font-size:11px;color:var(--muted)}
+.week{max-width:860px;margin:0 auto;padding:0 var(--gutter-r) 8px var(--gutter-l)}
+.wk-bar{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.wk-nav{flex:0 0 auto;width:32px;height:32px;border:1px solid var(--line);background:var(--paper);border-radius:999px;cursor:pointer;font-size:18px;line-height:1;padding:0}
+.wk-nav:disabled{opacity:.35;cursor:default}
+.wk-label{flex:0 1 auto;min-width:0;border:0;background:transparent;font:600 15px/1.3 var(--f-body);cursor:pointer;padding:6px 2px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-label small{font:12px var(--f-mono);color:var(--muted);margin-left:6px}
+.wk-label small::after{content:" ▾";color:var(--accent)}
+.wk-label[aria-expanded="true"] small::after{content:" ▴"}
+.star-tab{flex:0 0 auto;margin-left:auto;border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap}
+.star-tab b{color:var(--gold);font-weight:600}
+.star-tab i{font-style:normal;font:12px var(--f-mono);color:var(--muted);margin-left:4px}
+.star-tab.on{background:var(--gold);border-color:var(--gold);color:var(--gold-ink)}
+.star-tab.on b,.star-tab.on i{color:var(--gold-ink)}
+.wk-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.day{min-width:0;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:5px 0;text-align:center;cursor:pointer;line-height:1.2}
+.day span{display:block;font-size:11px;color:var(--muted)}
+.day b{display:block;font:500 16px/1.25 var(--f-mono)}
 .day i{display:block;font-style:normal;font:500 11px/1.3 var(--f-mono);color:var(--accent)}
+.day:disabled{background:transparent;border-color:transparent;cursor:default}
+.day:disabled b,.day:disabled i{color:var(--muted);opacity:.5}
+.day.today:not(.on){border-color:var(--accent)}
 .day.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .day.on span,.day.on i{color:var(--accent-ink)}
+.cal{max-width:860px;margin:0 auto;padding:0 var(--gutter-r) 10px var(--gutter-l)}
+.cal-box{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px 10px 10px;box-shadow:var(--shadow);max-width:420px}
+.cal-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.cal-head h3{flex:1;margin:0;text-align:center;font:700 16px/1.3 var(--f-display)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.cal-grid .wd{font-size:11px;color:var(--muted);padding:2px 0}
+.cal-grid .wd.sun{color:#c0392b}
+.cal-d{min-width:0;border:0;background:transparent;border-radius:8px;padding:4px 0 3px;cursor:pointer;font:500 14px/1.2 var(--f-mono);color:var(--ink)}
+.cal-d i{display:block;font-style:normal;font-size:10px;color:var(--accent);min-height:1.2em}
+.cal-d:not(:disabled){background:var(--accent-soft)}
+.cal-d:disabled{color:var(--muted);opacity:.45;cursor:default}
+.cal-d.today{outline:1px solid var(--accent);outline-offset:-1px}
+.cal-d.on{background:var(--accent);color:var(--accent-ink)}
+.cal-d.on i{color:var(--accent-ink)}
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 var(--gutter-r) 10px var(--gutter-l);max-width:860px;margin:0 auto}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:0 0 auto;border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap}
@@ -114,9 +143,6 @@ mark{background:var(--mark);color:inherit;border-radius:2px}
 .star{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:19px;line-height:1;padding:2px 2px 2px 8px;color:var(--muted)}
 .star[aria-pressed="true"]{color:var(--gold)}
 .it.starred{border-color:color-mix(in srgb,var(--gold) 55%,var(--line));box-shadow:inset 3px 0 0 var(--gold),var(--shadow)}
-.day.stars b{font-family:var(--f-body);font-weight:600;color:var(--gold)}
-.day.stars.on{background:var(--gold);border-color:var(--gold)}
-.day.stars.on b,.day.stars.on span,.day.stars.on i{color:var(--gold-ink)}
 .note{color:var(--muted);font-size:13px;margin:-8px 0 14px}
 .result-day{font:700 18px/1.3 var(--f-display);margin:20px 0 8px}
 
@@ -158,7 +184,25 @@ mark{background:var(--mark);color:inherit;border-radius:2px}
     <div class="search" id="searchBox" hidden>
       <input id="q" type="search" placeholder="모든 날짜에서 찾기 (예: 구리, 관세)" enterkeyhint="search">
     </div>
-    <nav class="strip" id="strip" aria-label="날짜"></nav>
+    <nav class="week" id="week" aria-label="날짜">
+      <div class="wk-bar">
+        <button class="wk-nav" id="wkPrev" type="button" aria-label="이전 주">‹</button>
+        <button class="wk-label" id="wkLabel" type="button" aria-expanded="false" aria-controls="cal" title="달력에서 고르기"></button>
+        <button class="wk-nav" id="wkNext" type="button" aria-label="다음 주">›</button>
+        <button class="star-tab" id="starBtn" type="button"><b>★ 중요</b><i id="starCount">0</i></button>
+      </div>
+      <div class="wk-days" id="wkDays"></div>
+    </nav>
+    <div class="cal" id="cal" hidden>
+      <div class="cal-box">
+        <div class="cal-head">
+          <button class="wk-nav" id="calPrev" type="button" aria-label="이전 달">‹</button>
+          <h3 id="calTitle"></h3>
+          <button class="wk-nav" id="calNext" type="button" aria-label="다음 달">›</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    </div>
     <nav class="chips" id="chips" aria-label="채널"></nav>
   </header>
   <main id="main"></main>
@@ -254,7 +298,7 @@ async function start(){
   const want = decodeURIComponent(location.hash.slice(1));
   const d = index.days.find(x => x.date === want) || index.days[0];
   if (!d){ $("main").innerHTML = '<p class="empty">아직 모아둔 글이 없어요.<br>텔레그램 Must See 채널에 글을 전달하면 1시간 안에 여기에 나타나요.</p>'; return; }
-  renderStrip();
+  initDates(); wk = mondayOf(d.date);
   if (want === "starred") showStarred(); else showDay(d.date);
 }
 
@@ -347,15 +391,14 @@ function refreshStarUI(){
     b.setAttribute("aria-label", on ? "중요 표시 해제" : "중요 표시");
     b.closest(".it")?.classList.toggle("starred", on);
   });
-  const chip = document.querySelector(".day.stars i");
-  if (chip) chip.textContent = Object.keys(stars).length + "건";
+  $("starCount").textContent = Object.keys(stars).length;
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && sync && key) flush(); });
 
 async function showStarred(){
   cur.day = "starred"; cur.ch = "all";
   try { history.replaceState(null, "", "#starred"); } catch {}
-  document.querySelectorAll(".day").forEach(b => b.classList.toggle("on", b.dataset.date === "starred"));
+  closeCal(); renderWeek(); $("starBtn").classList.add("on");
   $("chips").hidden = true;
   const main = $("main"); main.innerHTML = '<p class="empty">불러오는 중…</p>';
   const ids = new Set(Object.keys(stars));
@@ -391,23 +434,97 @@ function fmtDay(s, long){
   return long ? `${d.getMonth()+1}월 ${d.getDate()}일 (${WEEK[d.getDay()]})` : { md: `${d.getMonth()+1}/${d.getDate()}`, w: WEEK[d.getDay()] };
 }
 
-function renderStrip(){
-  const strip = $("strip"); strip.textContent = "";
-  const sb = document.createElement("button");
-  sb.type = "button"; sb.className = "day stars"; sb.dataset.date = "starred";
-  sb.innerHTML = `<span>모아보기</span><b>★ 중요</b><i>${Object.keys(stars).length}건</i>`;
-  sb.addEventListener("click", () => { closeSearch(); showStarred(); });
-  strip.append(sb);
-  for (const d of index.days){
-    const f = fmtDay(d.date);
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "day"; b.dataset.date = d.date;
-    b.innerHTML = `<span>${f.w}</span><b>${f.md}</b><i>${d.n}건</i>`;
-    b.setAttribute("aria-label", `${fmtDay(d.date, true)} ${d.n}건`);
-    b.addEventListener("click", () => { closeSearch(); showDay(d.date); });
-    strip.append(b);
-  }
+// ---------------------------------------------------------------- 주 단위 날짜 + 달력
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseD = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return ymd(d); };
+const mondayOf = s => addDays(s, -((parseD(s).getDay() + 6) % 7));
+const todayStr = () => ymd(new Date());
+let dayMap = new Map(), wk = null, calMonth = null;
+
+function initDates(){
+  dayMap = new Map(index.days.map(d => [d.date, d]));
+  $("starCount").textContent = Object.keys(stars).length;
 }
+function postWeeks(){ return [...new Set(index.days.map(d => mondayOf(d.date)))].sort(); }
+function latestIn(monday){
+  for (let i = 6; i >= 0; i--){ const d = addDays(monday, i); if (dayMap.has(d)) return d; }
+  return null;
+}
+function renderWeek(){
+  const box = $("wkDays"); box.textContent = "";
+  const today = todayStr(); let n = 0;
+  for (let i = 0; i < 7; i++){
+    const date = addDays(wk, i), m = dayMap.get(date), d = parseD(date);
+    if (m) n += m.n;
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.date = date;
+    b.className = "day" + (date === today ? " today" : "") + (date === cur.day ? " on" : "");
+    b.innerHTML = `<span>${WEEK[d.getDay()]}</span><b>${d.getDate()}</b><i>${m ? m.n + "건" : "·"}</i>`;
+    b.setAttribute("aria-label", `${fmtDay(date, true)} ${m ? m.n + "건" : "글 없음"}`);
+    if (m) b.addEventListener("click", () => { closeSearch(); showDay(date); });
+    else b.disabled = true;
+    box.append(b);
+  }
+  const a = parseD(wk), z = parseD(addDays(wk, 6));
+  const label = a.getMonth() === z.getMonth()
+    ? `${a.getMonth()+1}월 ${a.getDate()}일 – ${z.getDate()}일`
+    : `${a.getMonth()+1}월 ${a.getDate()}일 – ${z.getMonth()+1}월 ${z.getDate()}일`;
+  $("wkLabel").innerHTML = `${label}<small>${n}건</small>`;
+  const ws = postWeeks();
+  $("wkPrev").disabled = !ws.some(w => w < wk);
+  $("wkNext").disabled = !ws.some(w => w > wk);
+}
+function goWeek(dir){
+  const ws = postWeeks();
+  const target = dir < 0 ? ws.filter(w => w < wk).pop() : ws.find(w => w > wk);
+  if (!target) return;
+  closeSearch(); closeCal();
+  showDay(latestIn(target));
+}
+$("wkPrev").addEventListener("click", () => goWeek(-1));
+$("wkNext").addEventListener("click", () => goWeek(1));
+$("starBtn").addEventListener("click", () => { closeSearch(); showStarred(); });
+
+function postMonths(){ return [...new Set(index.days.map(d => d.date.slice(0, 7)))].sort(); }
+function renderCal(){
+  const [y, m] = calMonth.split("-").map(Number);
+  $("calTitle").textContent = `${y}년 ${m}월`;
+  const grid = $("calGrid"); grid.textContent = "";
+  ["월","화","수","목","금","토","일"].forEach(w => {
+    const s = document.createElement("div"); s.className = "wd" + (w === "일" ? " sun" : ""); s.textContent = w; grid.append(s);
+  });
+  const first = new Date(y, m - 1, 1), last = new Date(y, m, 0).getDate();
+  for (let i = 0; i < (first.getDay() + 6) % 7; i++) grid.append(document.createElement("div"));
+  const today = todayStr();
+  for (let d = 1; d <= last; d++){
+    const date = `${calMonth}-${pad(d)}`, info = dayMap.get(date);
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "cal-d" + (date === today ? " today" : "") + (date === cur.day ? " on" : "");
+    b.innerHTML = `${d}<i>${info ? info.n : ""}</i>`;
+    b.setAttribute("aria-label", `${m}월 ${d}일 ${info ? info.n + "건" : "글 없음"}`);
+    if (info) b.addEventListener("click", () => { closeSearch(); closeCal(); showDay(date); });
+    else b.disabled = true;
+    grid.append(b);
+  }
+  const ms = postMonths();
+  $("calPrev").disabled = !ms.some(x => x < calMonth);
+  $("calNext").disabled = !ms.some(x => x > calMonth);
+}
+function openCal(){
+  calMonth = (cur.day && cur.day !== "starred" ? cur.day : wk).slice(0, 7);
+  if (!postMonths().includes(calMonth)) calMonth = index.days[0].date.slice(0, 7);
+  renderCal();
+  $("cal").hidden = false; $("wkDays").hidden = true; $("wkLabel").setAttribute("aria-expanded", "true");
+}
+function closeCal(){
+  $("cal").hidden = true; $("wkDays").hidden = false; $("wkLabel").setAttribute("aria-expanded", "false");
+}
+$("wkLabel").addEventListener("click", () => $("cal").hidden ? openCal() : closeCal());
+$("calPrev").addEventListener("click", () => { const p = postMonths().filter(x => x < calMonth).pop(); if (p){ calMonth = p; renderCal(); } });
+$("calNext").addEventListener("click", () => { const n = postMonths().find(x => x > calMonth); if (n){ calMonth = n; renderCal(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("cal").hidden) closeCal(); });
 
 function renderChips(day){
   const chips = $("chips"); chips.textContent = "";
@@ -434,10 +551,7 @@ async function loadDay(date){
 async function showDay(date){
   cur.day = date; cur.ch = "all";
   try { history.replaceState(null, "", "#" + date); } catch {}
-  document.querySelectorAll(".day").forEach(b => {
-    const on = b.dataset.date === date; b.classList.toggle("on", on);
-    if (on) b.scrollIntoView({ block: "nearest", inline: "nearest" });
-  });
+  wk = mondayOf(date); closeCal(); renderWeek(); $("starBtn").classList.remove("on");
   const meta = index.days.find(x => x.date === date);
   renderChips(meta);
   $("main").innerHTML = '<p class="empty">불러오는 중…</p>';
@@ -632,7 +746,7 @@ $("pdfBtn").addEventListener("click", async () => {
 function closeSearch(){
   if ($("searchBox").hidden) return;
   $("searchBox").hidden = true; $("q").value = ""; $("searchBtn").classList.remove("on"); $("searchBtn").setAttribute("aria-expanded","false");
-  $("strip").hidden = false;
+  $("week").hidden = false;
 }
 $("searchBtn").addEventListener("click", () => {
   if (!$("searchBox").hidden){ closeSearch(); cur.day === "starred" ? showStarred() : showDay(cur.day); return; }
@@ -643,8 +757,8 @@ let qTimer = null;
 $("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(runSearch, 250); });
 async function runSearch(){
   const q = $("q").value.trim();
-  if (!q){ $("strip").hidden = false; if (cur.day === "starred") showStarred(); else { renderChips(index.days.find(x => x.date === cur.day)); renderDay(); } return; }
-  $("strip").hidden = true; $("chips").hidden = true;
+  if (!q){ $("week").hidden = false; if (cur.day === "starred") showStarred(); else { renderChips(index.days.find(x => x.date === cur.day)); renderDay(); } return; }
+  $("week").hidden = true; closeCal(); $("chips").hidden = true;
   const main = $("main"); main.innerHTML = '<p class="empty">찾는 중…</p>';
   const low = q.toLowerCase(); let total = 0; const frag = document.createDocumentFragment();
   for (const d of index.days){
