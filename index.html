@@ -254,9 +254,27 @@ async function useRaw(raw){
   if (ok !== "mustsee-ok") throw new Error("bad");
 }
 
+// 새 화면이 올라갔는데 기기가 예전 화면을 저장해두고 있으면, 주소를 살짝 바꿔 새로 불러온다
+const VIEWER_VERSION = "371468d5e6b4";
+function needsUpdate(latest){
+  if (!latest || latest === VIEWER_VERSION) return false;
+  const tried = new URLSearchParams(location.search).get("v");
+  if (tried === latest) return false;   // 이미 한 번 시도함 (반복 방지)
+  location.replace(location.pathname + "?v=" + latest + location.hash);
+  return true;
+}
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !meta) return;
+  try {
+    const m = await (await fetch("data/meta.json", { cache: "no-cache" })).json();
+    needsUpdate(m.viewer);
+  } catch {}
+});
+
 async function boot(){
   try { meta = await (await fetch("data/meta.json", { cache: "no-cache" })).json(); }
   catch { $("err").textContent = "아직 데이터가 없어요. 첫 수집이 끝나면 다시 열어주세요."; return; }
+  if (needsUpdate(meta.viewer)) return;
   const saved = store.get(LS);
   if (saved){
     try {
