@@ -61,6 +61,8 @@ header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92
 .top .sp{flex:1}
 .icon-btn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
 .icon-btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.mk-btn{text-decoration:none;color:var(--ink);font-weight:600}
+@media (max-width:440px){.top{gap:6px}.top .icon-btn{padding:5px 9px;font-size:12.5px}}
 .search{padding:0 var(--gutter-r) 8px var(--gutter-l);max-width:860px;margin:0 auto}
 .search input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;font-size:16px}
 .week{max-width:860px;margin:0 auto;padding:0 var(--gutter-r) 8px var(--gutter-l)}
@@ -177,6 +179,7 @@ mark{background:var(--mark);color:inherit;border-radius:2px}
     <div class="top">
       <h1 class="brand">Must See<small id="updated"></small></h1>
       <span class="sp"></span>
+      <a class="icon-btn mk-btn" id="marketBtn" href="market.html">마켓</a>
       <button class="icon-btn" id="searchBtn" type="button" aria-expanded="false">검색</button>
       <button class="icon-btn" id="pdfBtn" type="button">PDF</button>
       <button class="icon-btn" id="lockBtn" type="button" title="이 기기에서 잠그기">잠금</button>
@@ -220,6 +223,7 @@ mark{background:var(--mark);color:inherit;border-radius:2px}
 (() => {
 const $ = id => document.getElementById(id);
 const LS = "mustsee.key.v1";
+const SS = { get(k){ try { return sessionStorage.getItem(k); } catch { return null; } }, set(k,v){ try { sessionStorage.setItem(k,v); } catch {} }, del(k){ try { sessionStorage.removeItem(k); } catch {} } };
 const WEEK = "일월화수목금토";
 const enc = new TextEncoder(), dec = new TextDecoder();
 let key = null, meta = null, index = null;
@@ -255,7 +259,7 @@ async function useRaw(raw){
 }
 
 // 새 화면이 올라갔는데 기기가 예전 화면을 저장해두고 있으면, 주소를 살짝 바꿔 새로 불러온다
-const VIEWER_VERSION = "371468d5e6b4";
+const VIEWER_VERSION = "c8a205c28b33";
 function needsUpdate(latest){
   if (!latest || latest === VIEWER_VERSION) return false;
   const tried = new URLSearchParams(location.search).get("v");
@@ -275,7 +279,7 @@ async function boot(){
   try { meta = await (await fetch("data/meta.json", { cache: "no-cache" })).json(); }
   catch { $("err").textContent = "아직 데이터가 없어요. 첫 수집이 끝나면 다시 열어주세요."; return; }
   if (needsUpdate(meta.viewer)) return;
-  const saved = store.get(LS);
+  const saved = store.get(LS) || SS.get(LS);
   if (saved){
     try {
       const s = JSON.parse(saved);
@@ -295,6 +299,8 @@ $("lockForm").addEventListener("submit", async e => {
     const raw = await deriveRaw($("pw").value);
     await useRaw(raw);
     if ($("remember").checked) store.set(LS, JSON.stringify({ salt: meta.salt, k: b64e(raw) }));
+    SS.set(LS, JSON.stringify({ salt: meta.salt, k: b64e(raw) }));
+    if (new URLSearchParams(location.search).get("next") === "market"){ location.replace("market.html"); return; }
     $("pw").value = "";
     await start();
   } catch {
@@ -303,7 +309,7 @@ $("lockForm").addEventListener("submit", async e => {
 });
 
 $("lockBtn").addEventListener("click", () => {
-  store.del(LS); key = null; dayCache.clear(); sync = null;
+  store.del(LS); SS.del(LS); key = null; dayCache.clear(); sync = null;
   blobCache.forEach(u => URL.revokeObjectURL(u)); blobCache.clear();
   $("app").hidden = true; $("lock").hidden = false; $("pw").focus();
 });
