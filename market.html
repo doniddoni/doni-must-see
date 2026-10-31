@@ -312,6 +312,37 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .study details > summary { margin-top: 4px; }
 .study details[open] > summary { margin-bottom: 4px; }
 .tag.m { min-width: 18px; text-align: center; }
+/* 예상·결과 */
+.evbtn { font: inherit; font-size: 11.5px; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 999px; padding: 1px 8px 1px 6px; margin-left: 6px; cursor: pointer; white-space: nowrap; vertical-align: 1px; }
+.evb { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 5px; margin-right: 4px; background: var(--soft); color: var(--muted); white-space: nowrap; }
+.evb.pre { background: var(--accent-soft); color: var(--accent); }
+.evb.due { background: var(--p-soft); color: var(--ma20); }
+.evb.ok { background: color-mix(in srgb, var(--up) 14%, transparent); color: var(--up); }
+.evb.mid { background: var(--soft); color: var(--ink); }
+.evb.ng { background: color-mix(in srgb, var(--down) 14%, transparent); color: var(--down); }
+.citem.clk { cursor: pointer; }
+.ev-ov { position: fixed; inset: 0; z-index: 20; background: rgba(10,16,28,.45); display: grid; place-items: center; padding: calc(env(safe-area-inset-top,0px) + 16px) 12px calc(env(safe-area-inset-bottom,0px) + 16px); overflow-y: auto; }
+.sheet { background: var(--card); border-radius: 14px; width: 100%; max-width: 560px; padding: 16px 18px 18px; display: grid; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.25); max-height: 100%; overflow-y: auto; box-sizing: border-box; }
+.sheet-h { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.sheet-h h2 { font: 700 20px/1.3 var(--f-display); margin: 2px 0; }
+.sbox { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sbox h3 { margin: 0; font-size: 15px; }
+.sbox.dim { opacity: .55; }
+.secg { display: grid; gap: 4px; }
+.secs { display: flex; flex-wrap: wrap; gap: 5px; }
+.sec { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.sec.plus { border-color: var(--up); color: var(--up); background: color-mix(in srgb, var(--up) 9%, var(--card)); }
+.sec.minus { border-color: var(--down); color: var(--down); background: color-mix(in srgb, var(--down) 9%, var(--card)); }
+.secchk { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.secchk .sec { cursor: default; }
+.duebox { background: var(--p-soft); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; }
+.duerow { font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--line); padding: 7px 0; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13.5px; }
+.duebox .duerow:first-of-type { border-top: 0; }
+.duerow .t { min-width: 0; overflow-wrap: anywhere; }
+.duerow .s { display: block; font-size: 12px; color: var(--muted); }
+.secrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13.5px; align-items: baseline; }
+#rev .panel .snav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#rev .sdate { font: 700 17px/1.3 var(--f-display); min-width: 9em; text-align: center; }
 </style>
 </head>
 <body>
@@ -327,6 +358,7 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
     <nav class="tabs" role="tablist" aria-label="화면 선택">
       <button class="tab" role="tab" id="tab-index" aria-selected="true" aria-controls="app">지수·노트</button>
       <button class="tab" role="tab" id="tab-calendar" aria-selected="false" aria-controls="cal">증시 캘린더</button>
+      <button class="tab" role="tab" id="tab-review" aria-selected="false" aria-controls="rev">주간 복기</button>
       <button class="tab" role="tab" id="tab-companies" aria-selected="false" aria-controls="comp">기업 리스트</button>
     </nav>
   </div>
@@ -343,6 +375,12 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 <main class="gutter" id="cal" role="tabpanel" aria-labelledby="tab-calendar" hidden>
   <div class="msg">증시 캘린더를 불러오는 중입니다.</div>
 </main>
+
+<main class="gutter" id="rev" role="tabpanel" aria-labelledby="tab-review" hidden>
+  <div class="msg">주간 복기를 불러오는 중입니다.</div>
+</main>
+
+<div class="ev-ov" id="ev-ov" hidden></div>
 
 <main class="gutter" id="comp" role="tabpanel" aria-labelledby="tab-companies" hidden>
   <div class="msg">기업 리스트를 불러오는 중입니다.</div>
@@ -388,7 +426,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "d68a464353c7";
+      var ver = "4029216b9f46";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -422,17 +460,19 @@ var MS = (function () {
    충돌: 날짜별로 더 나중에 고친 쪽, 별 표시는 updated 가 나중인 쪽 */
 var MNOTES = (function () {
   var LSN = "mustsee.market.v1", PATH = "market_notes.bin";
-  var data = { notes: {}, picks: null }, dirty = false, rev = 0, state = "local", timer = null, flushing = null, subs = [];
+  var data = { notes: {}, ev: {}, weeks: {}, picks: null }, dirty = false, rev = 0, state = "local", timer = null, flushing = null, subs = [];
   function emit() { subs.forEach(function (f) { try { f(); } catch (e) {} }); }
   function saveLocal() { try { localStorage.setItem(LSN, JSON.stringify({ salt: MS.salt(), data: data, dirty: dirty })); } catch (e) {} }
   function loadLocal() {
     try { var s = JSON.parse(localStorage.getItem(LSN) || "null"); if (s && s.salt === MS.salt()) { data = s.data || data; dirty = !!s.dirty; } } catch (e) {}
-    data.notes = data.notes || {};
+    data.notes = data.notes || {}; data.ev = data.ev || {}; data.weeks = data.weeks || {};
   }
   function merge(a, b) {
-    var out = { notes: {}, picks: a.picks || null };
-    Object.keys(a.notes || {}).forEach(function (d) { out.notes[d] = a.notes[d]; });
-    Object.keys(b.notes || {}).forEach(function (d) { var n = b.notes[d]; if (!out.notes[d] || (n.t || 0) > (out.notes[d].t || 0)) out.notes[d] = n; });
+    var out = { notes: {}, ev: {}, weeks: {}, picks: a.picks || null };
+    ["notes", "ev", "weeks"].forEach(function (f) {
+      Object.keys(a[f] || {}).forEach(function (d) { out[f][d] = a[f][d]; });
+      Object.keys(b[f] || {}).forEach(function (d) { var n = b[f][d]; if (!out[f][d] || (n.t || 0) > (out[f][d].t || 0)) out[f][d] = n; });
+    });
     if (b.picks && (!out.picks || (b.picks.updated || "") > (out.picks.updated || ""))) out.picks = b.picks;
     return out;
   }
@@ -440,7 +480,7 @@ var MNOTES = (function () {
   function hdr() { return { Authorization: "Bearer " + MS.sync().token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }; }
   function fetchRemote() {
     return fetch(url() + "?ref=" + encodeURIComponent(MS.sync().branch) + "&_=" + Date.now(), { headers: hdr(), cache: "no-store" }).then(function (r) {
-      if (r.status === 404) return { data: { notes: {}, picks: null }, sha: null };
+      if (r.status === 404) return { data: { notes: {}, ev: {}, weeks: {}, picks: null }, sha: null };
       if (r.status === 401 || r.status === 403) { var e = new Error("auth"); e.auth = true; throw e; }
       if (!r.ok) throw new Error("remote " + r.status);
       return r.json().then(function (j) {
@@ -484,6 +524,8 @@ var MNOTES = (function () {
   function schedule(ms) { clearTimeout(timer); timer = setTimeout(flush, ms); }
   function init() { loadLocal(); emit(); return flush(); }
   function setNote(date, note) { note.t = Date.now(); data.notes[date] = note; dirty = true; rev++; saveLocal(); emit(); schedule(1200); }
+  function setEv(k, v) { v.t = Date.now(); data.ev[k] = v; dirty = true; rev++; saveLocal(); emit(); schedule(1200); }
+  function setWeek(m, v) { v.t = Date.now(); data.weeks[m] = v; dirty = true; rev++; saveLocal(); emit(); schedule(1200); }
   function putPicks(p) { data.picks = p; dirty = true; rev++; saveLocal(); schedule(800); }
   function status() {
     if (!MS.sync()) return "이 기기에만 저장돼요";
@@ -495,6 +537,8 @@ var MNOTES = (function () {
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible" && MS.sync()) flush(); });
   return { init: init, flush: flush, setNote: setNote, putPicks: putPicks, status: status,
            note: function (d) { return data.notes[d] || null; }, notes: function () { return data.notes; },
+           ev: function (k) { return data.ev[k] || null; }, evs: function () { return data.ev; }, setEv: setEv,
+           week: function (m) { return data.weeks[m] || null; }, setWeek: setWeek,
            picks: function () { return data.picks; }, on: function (f) { subs.push(f); } };
 })();
 </script>
@@ -510,7 +554,7 @@ var Study = (function () {
   function addDays(s, n) { var d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
   function mdw(s) { var d = new Date(s + "T00:00:00Z"); return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "(" + DOW[d.getUTCDay()] + ")"; }
   function text(html) { var d = document.createElement("div"); d.innerHTML = String(html || "").replace(/<br\s*\/?>/gi, " "); return (d.textContent || "").replace(/\s+/g, " ").trim(); }
-  function blank() { return { line: "", why: "", conf: "", refs: [] }; }
+  function blank() { return { line: "", why: "", conf: "", refs: [], sec: {} }; }
 
   // 그날 기준 핵심 지표 등락: 그 날짜 이전(포함) 마지막 봉 기준
   function moves(date) {
@@ -543,6 +587,7 @@ var Study = (function () {
       '<div class="snav"><button class="nav-btn" id="n-prev" aria-label="전날">‹</button><span class="sdate num">' + mdw(d) + (d === t ? " 오늘" : "") + '</span>' +
       '<button class="nav-btn" id="n-next" aria-label="다음날"' + (d >= t ? " disabled" : "") + '>›</button>' +
       (d !== t ? '<button class="fbtn" id="n-today">오늘로</button>' : "") + '</div>' +
+      '<div id="n-due">' + Loop.dueHTML() + '</div>' +
       moveChips(d) +
       '<label class="nlab" for="n-line">오늘 시장 한 줄</label>' +
       '<input id="n-line" class="ninput" type="text" maxlength="200" placeholder="예: 금리 급등에 성장주 약세, 코스피는 외국인 매도로 1% 하락" value="' + esc(n.line) + '">' +
@@ -550,6 +595,7 @@ var Study = (function () {
       '<textarea id="n-why" class="ninput" rows="3" placeholder="무엇 때문에 움직였는지, 근거가 된 뉴스·지표는 무엇인지">' + esc(n.why) + '</textarea>' +
       '<div class="nconf"><span class="nlab">확신도</span><span class="seg" role="group" aria-label="확신도">' +
       ["상", "중", "하"].map(function (c) { return '<button data-conf="' + c + '" aria-pressed="' + (n.conf === c) + '">' + c + '</button>'; }).join("") + '</span></div>' +
+      '<details id="n-secbox"' + (Object.keys(n.sec || {}).length ? " open" : "") + '><summary>오늘 움직인 섹터 고르기' + secSummary(n) + '</summary><div id="n-sec">' + Loop.secChips(n.sec, "day") + '</div></details>' +
       '<div id="n-refs">' + refsHTML(n) + '</div>' +
       '<details id="n-ms"' + (st.showMs ? " open" : "") + '><summary>그날 Must See에서 근거 고르기</summary><div id="n-ms-list"><div class="empty">불러오는 중…</div></div></details>' +
       '<details id="n-hist"><summary>최근 노트</summary>' + histHTML() + '</details>' +
@@ -567,6 +613,23 @@ var Study = (function () {
         '<button class="pickbtn sm" data-unref="' + i + '" aria-label="근거에서 빼기">✕</button></div>';
     }).join("");
   }
+  function secSummary(n) {
+    var ks = Object.keys(n.sec || {}); if (!ks.length) return "";
+    return ' <span class="nlab" style="font-weight:400">' + ks.map(function (k) { return (n.sec[k] === "+" ? "▲" : "▼") + esc(k); }).join(" ") + '</span>';
+  }
+  function wireSec() {
+    var box = $("n-sec"); if (!box) return;
+    box.querySelectorAll("[data-sec]").forEach(function (b) {
+      b.onclick = function () {
+        var name = b.getAttribute("data-sec").split("|")[1];
+        var n = current(); n.line = $("n-line").value; n.why = $("n-why").value; n.sec = n.sec || {};
+        var v = Loop.cycle(n.sec[name]); if (v) n.sec[name] = v; else delete n.sec[name];
+        NSET(n); box.innerHTML = Loop.secChips(n.sec, "day"); wireSec();
+        var sm = $("n-secbox").querySelector("summary"); sm.innerHTML = "오늘 움직인 섹터 고르기" + secSummary(n);
+      };
+    });
+  }
+  function NSET(n) { MNOTES.setNote(st.date, n); }
   function histHTML() {
     var all = MNOTES.notes(), ds = Object.keys(all).filter(function (k) { return all[k] && (all[k].line || all[k].why); }).sort().reverse().slice(0, 14);
     if (!ds.length) return '<div class="empty">아직 쓴 노트가 없어요.</div>';
@@ -596,6 +659,7 @@ var Study = (function () {
       };
     });
     $("n-ms").ontoggle = function () { st.showMs = $("n-ms").open; };
+    wireSec();
     wireRefs();
     document.querySelectorAll("[data-go]").forEach(function (b) { b.onclick = function () { go(b.getAttribute("data-go")); }; });
   }
@@ -614,6 +678,7 @@ var Study = (function () {
     if (!$("n-refs")) return;
     var n = MNOTES.note(st.date) || blank();
     $("ns-status").textContent = MNOTES.status();
+    if ($("n-due")) $("n-due").innerHTML = Loop.dueHTML();
     $("n-refs").innerHTML = refsHTML(n); wireRefs();
     document.querySelectorAll("[data-conf]").forEach(function (b) { b.setAttribute("aria-pressed", String(n.conf === b.getAttribute("data-conf"))); });
     var hist = $("n-hist"); if (hist) { var o = hist.open; hist.innerHTML = '<summary>최근 노트</summary>' + histHTML(); hist.open = o; hist.querySelectorAll("[data-go]").forEach(function (b) { b.onclick = function () { go(b.getAttribute("data-go")); }; }); }
@@ -660,7 +725,289 @@ var Study = (function () {
     MNOTES.on(refreshParts);
     render();
   }
-  return { init: init, rerender: function () { if (st.date) render(); } };
+  return { init: init, rerender: function () { if (st.date) render(); }, go: function (d) { go(d); }, refresh: function () { refreshParts(); } };
+})();
+</script>
+<script>
+/* 사전 예상 → 사후 확인 루프 + 주간 복기
+   저장: MNOTES 의 ev(일정별 예상·결과), weeks(주간 정리). 일정 키 = 종류|날짜|나라·종목|이름 */
+var SECTORS = {
+  "내 커버리지": ["엔터", "미디어·콘텐츠", "레저·여행·카지노", "통신", "인터넷·게임"],
+  "산업": ["반도체", "2차전지", "자동차", "조선·방산·기계", "바이오", "은행·보험", "증권", "건설·부동산", "화학·정유", "철강·소재", "유통·소비재", "항공·해운", "유틸리티"],
+  "스타일": ["성장주", "가치주", "수출주", "내수주", "중소형주"]
+};
+var Loop = (function () {
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  var CTRY = { KR: "한국", US: "미국", CN: "중국", JP: "일본", EU: "유럽", UK: "영국", DE: "독일", GL: "글로벌" };
+  var reg = {}, cur = null, hooks = { changed: [] };
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function today() { try { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date()); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+  function addDays(s, n) { var d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function mdw(s) { var d = new Date(s + "T00:00:00Z"); return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "(" + DOW[d.getUTCDay()] + ")"; }
+  function monday(s) { var d = new Date(s + "T00:00:00Z"); return addDays(s, -((d.getUTCDay() + 6) % 7)); }
+  function clone(o) { return JSON.parse(JSON.stringify(o || {})); }
+
+  // ---------- 일정 등록·키
+  function key(x) {
+    var e = x.e;
+    if (x.k === "m") return ["m", e.date, e.country, e.title].join("|");
+    if (x.k === "u") return ["u", e.date, e.symbol].join("|");
+    return [x.k, e.date, e.code].join("|");
+  }
+  function info(x) {
+    var e = x.e;
+    if (x.k === "m") return { kind: "m", date: e.date, title: (CTRY[e.country] || "") + " " + e.title, sub: e.note || "", actual: e.actual || "", forecast: e.forecast || "", imp: e.imp };
+    if (x.k === "u") return { kind: "u", date: e.date, title: e.name + " (" + e.symbol + ") 실적", sub: [e.timing, e.kst_label ? "한국 " + e.kst_label : "", e.eps_est != null ? "EPS 추정 " + e.eps_est : ""].filter(Boolean).join(" · "), actual: e.eps_act != null ? "EPS " + e.eps_act + (e.surprise != null ? " (서프 " + (e.surprise > 0 ? "+" : "") + Number(e.surprise).toFixed(1) + "%)" : "") : "" };
+    if (x.k === "p") return { kind: "p", date: e.date, title: e.company + " 잠정실적", sub: e.period || "", actual: [e.op ? "영업익 " + e.op : "", e.op_diff ? "컨센 " + e.op_diff : ""].filter(Boolean).join(" · ") };
+    return { kind: x.k, date: e.date, title: e.company + (x.k === "n" ? " IR" : " 실적 발표"), sub: [e.period, e.time].filter(Boolean).join(" · "), actual: "" };
+  }
+  function register(x) { var k = key(x); if (!reg[k]) reg[k] = info(x); return k; }
+  function state(k) {
+    var v = MNOTES.ev(k); if (!v) return "";
+    var hasPre = v.pre && (v.pre.dir || v.pre.react || v.pre.memo || Object.keys(v.pre.sec || {}).length);
+    var hasPost = v.post && (v.post.hit || v.post.memo);
+    return hasPost ? "post" : hasPre ? "pre" : "";
+  }
+  function badge(k) {
+    var s = state(k), d = (reg[k] || {}).date || "";
+    if (s === "post") { var h = MNOTES.ev(k).post.hit; return '<span class="evb ' + (h === "적중" ? "ok" : h === "빗나감" ? "ng" : "mid") + '">' + esc(h || "결과") + '</span>'; }
+    if (s === "pre") return '<span class="evb ' + (d && d <= today() ? "due" : "pre") + '">' + (d && d <= today() ? "결과 확인" : "예상 ✓") + '</span>';
+    return "";
+  }
+  // 캘린더 항목에 버튼 끼우기
+  function decorate(html, x) {
+    var k = register(x), s = state(k);
+    var label = s === "post" ? "다시 보기" : s === "pre" ? (x.e.date <= today() ? "결과 적기" : "예상 고치기") : (x.e.date < today() ? "복기" : "예상 적기");
+    var btn = ' <button class="evbtn" data-ev="' + esc(k) + '">' + badge(k) + label + '</button>';
+    var i = html.indexOf('<div class="t">'); if (i < 0) return html;
+    var j = html.indexOf("</div>", i);
+    return html.slice(0, j) + btn + html.slice(j);
+  }
+  function decorateCompact(html, x) {
+    var k = register(x);
+    return html.replace('<div class="citem"', '<div class="citem clk" data-ev="' + esc(k) + '" role="button" tabindex="0"')
+      .replace('<span class="t">', '<span class="t">' + badge(k));
+  }
+
+  // ---------- 섹터 칩 (누를 때마다 없음 → 수혜 → 부담 → 없음)
+  function secChips(map, scope) {
+    map = map || {};
+    return Object.keys(SECTORS).map(function (g) {
+      return '<div class="secg"><span class="nlab">' + g + '</span><div class="secs">' + SECTORS[g].map(function (n) {
+        var v = map[n] || "";
+        return '<button class="sec ' + (v === "+" ? "plus" : v === "-" ? "minus" : "") + '" data-sec="' + esc(scope) + '|' + esc(n) + '">' + (v === "+" ? "▲ " : v === "-" ? "▼ " : "") + esc(n) + '</button>';
+      }).join("") + '</div></div>';
+    }).join("") + '<div class="nlab">한 번 누르면 ▲수혜, 두 번 ▼부담, 세 번 해제</div>';
+  }
+  function cycle(v) { return v === "" || v == null ? "+" : v === "+" ? "-" : ""; }
+
+  // ---------- 편집 창
+  function open(k) {
+    var it = reg[k]; if (!it) return;
+    cur = k;
+    var v = clone(MNOTES.ev(k)); v.pre = v.pre || {}; v.post = v.post || {};
+    var past = it.date <= today();
+    var h = '<div class="sheet" role="dialog" aria-modal="true" aria-label="예상·결과">' +
+      '<div class="sheet-h"><div><div class="nlab">' + mdw(it.date) + (it.imp === "H" ? ' · <span class="star">● 중요</span>' : "") + '</div><h2>' + esc(it.title) + '</h2>' +
+      (it.sub ? '<div class="nlab" style="font-weight:400">' + esc(it.sub) + '</div>' : "") + '</div><button class="icon-btn" id="ev-x">닫기</button></div>' +
+      '<section class="sbox"><h3>① 발표 전 예상</h3>' +
+      '<div class="nconf"><span class="nlab">결과는</span><span class="seg" data-grp="dir">' + ["상회", "부합", "하회"].map(function (c) { return '<button data-v="' + c + '" aria-pressed="' + (v.pre.dir === c) + '">' + (it.kind === "m" ? "예상치 " : "컨센 ") + c + '</button>'; }).join("") + '</span></div>' +
+      '<label class="nlab" for="ev-react">시장 반응 예상</label><input id="ev-react" class="ninput" placeholder="예: 금리 상승 → 성장주 약세, 원화 약세" value="' + esc(v.pre.react || "") + '">' +
+      '<div class="nlab">영향 갈 섹터</div><div id="ev-sec-pre">' + secChips(v.pre.sec, "pre") + '</div>' +
+      '<label class="nlab" for="ev-pmemo">근거 메모</label><textarea id="ev-pmemo" class="ninput" rows="2" placeholder="왜 그렇게 보는지">' + esc(v.pre.memo || "") + '</textarea>' +
+      '</section>' +
+      '<section class="sbox' + (past ? "" : " dim") + '"><h3>② 발표 후 확인' + (past ? "" : ' <span class="nlab">발표 후에 적어요</span>') + '</h3>' +
+      '<label class="nlab" for="ev-act">실제 결과</label><input id="ev-act" class="ninput" placeholder="' + esc(it.actual || "실제치·시장 반응") + '" value="' + esc(v.post.actual || it.actual || "") + '">' +
+      '<div class="nconf"><span class="nlab">내 예상은</span><span class="seg" data-grp="hit">' + ["적중", "부분", "빗나감"].map(function (c) { return '<button data-v="' + c + '" aria-pressed="' + (v.post.hit === c) + '">' + c + '</button>'; }).join("") + '</span></div>' +
+      '<div id="ev-sec-post">' + postSecHTML(v) + '</div>' +
+      '<label class="nlab" for="ev-qmemo">배운 점</label><textarea id="ev-qmemo" class="ninput" rows="2" placeholder="예상과 달랐던 이유, 다음에 볼 것">' + esc(v.post.memo || "") + '</textarea>' +
+      '</section><div class="nlab" id="ev-status">' + esc(MNOTES.status()) + '</div></div>';
+    var ov = $("ev-ov"); ov.innerHTML = h; ov.hidden = false; document.body.style.overflow = "hidden";
+    wire();
+  }
+  function postSecHTML(v) {
+    var sec = (v.pre && v.pre.sec) || {}, names = Object.keys(sec);
+    if (!names.length) return "";
+    var ps = (v.post && v.post.sec) || {};
+    return '<div class="nlab">섹터 예상 맞았나</div>' + names.map(function (n) {
+      return '<div class="secchk"><span class="sec ' + (sec[n] === "+" ? "plus" : "minus") + '">' + (sec[n] === "+" ? "▲ " : "▼ ") + esc(n) + '</span><span class="seg" data-grp="psec" data-n="' + esc(n) + '">' +
+        [["o", "맞음"], ["x", "틀림"]].map(function (c) { return '<button data-v="' + c[0] + '" aria-pressed="' + (ps[n] === c[0]) + '">' + c[1] + '</button>'; }).join("") + '</span></div>';
+    }).join("");
+  }
+  function read() {
+    var v = clone(MNOTES.ev(cur)); v.pre = v.pre || {}; v.post = v.post || {};
+    var it = reg[cur];
+    v.d = it.date; v.title = it.title; v.kind = it.kind;
+    v.pre.react = $("ev-react").value; v.pre.memo = $("ev-pmemo").value;
+    v.post.actual = $("ev-act").value; v.post.memo = $("ev-qmemo").value;
+    return v;
+  }
+  var tmr = null;
+  function save(v, now) {
+    clearTimeout(tmr);
+    var k = cur;
+    var go = function () { MNOTES.setEv(k, v || read()); if ($("ev-status")) $("ev-status").textContent = MNOTES.status(); };
+    if (now) go(); else tmr = setTimeout(go, 500);
+  }
+  function wire() {
+    $("ev-x").onclick = close;
+    ["ev-react", "ev-pmemo", "ev-act", "ev-qmemo"].forEach(function (id) { $(id).oninput = function () { save(); }; });
+    $("ev-ov").querySelectorAll(".seg[data-grp] button").forEach(function (b) {
+      b.onclick = function () {
+        var g = b.parentNode.getAttribute("data-grp"), val = b.getAttribute("data-v"), v = read();
+        if (g === "dir") v.pre.dir = v.pre.dir === val ? "" : val;
+        if (g === "hit") v.post.hit = v.post.hit === val ? "" : val;
+        if (g === "psec") { var n = b.parentNode.getAttribute("data-n"); v.post.sec = v.post.sec || {}; v.post.sec[n] = v.post.sec[n] === val ? "" : val; }
+        save(v, true);
+        b.parentNode.querySelectorAll("button").forEach(function (o) { o.setAttribute("aria-pressed", String(o === b && o.getAttribute("aria-pressed") !== "true")); });
+      };
+    });
+    wireSec($("ev-sec-pre"), function (n) {
+      var v = read(); v.pre.sec = v.pre.sec || {}; var nv = cycle(v.pre.sec[n]);
+      if (nv) v.pre.sec[n] = nv; else delete v.pre.sec[n];
+      save(v, true);
+      $("ev-sec-pre").innerHTML = secChips(v.pre.sec, "pre");
+      $("ev-sec-post").innerHTML = postSecHTML(v); wire();
+    });
+  }
+  function wireSec(root, fn) {
+    if (!root) return;
+    root.querySelectorAll("[data-sec]").forEach(function (b) { b.onclick = function () { fn(b.getAttribute("data-sec").split("|")[1]); }; });
+  }
+  function close() {
+    if (cur && tmr) save(null, true);
+    cur = null; $("ev-ov").hidden = true; $("ev-ov").innerHTML = ""; document.body.style.overflow = "";
+    hooks.changed.forEach(function (f) { try { f(); } catch (e) {} });
+  }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && cur) close(); });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("[data-ev]");
+    if (t) { e.preventDefault(); e.stopPropagation(); open(t.getAttribute("data-ev")); return; }
+    if (e.target.id === "ev-ov") close();
+  }, true);
+
+  // ---------- 결과 확인 대기 (시장 노트 위에 표시)
+  function due() {
+    var all = MNOTES.evs(), t = today();
+    return Object.keys(all).filter(function (k) {
+      var v = all[k]; return v && v.d && v.d <= t && v.pre && (v.pre.dir || v.pre.react || v.pre.memo) && !(v.post && v.post.hit);
+    }).sort(function (a, b) { return all[a].d < all[b].d ? -1 : 1; });
+  }
+  function dueHTML() {
+    var ks = due(); if (!ks.length) return "";
+    var all = MNOTES.evs();
+    return '<div class="duebox"><div class="nlab">결과 확인할 일정 ' + ks.length + '건 · 예상과 비교해 보세요</div>' + ks.slice(0, 6).map(function (k) {
+      if (!reg[k]) reg[k] = { kind: all[k].kind, date: all[k].d, title: all[k].title, sub: "", actual: "" };
+      return '<button class="duerow" data-ev="' + esc(k) + '"><span class="num">' + mdw(all[k].d) + '</span><span class="t">' + esc(all[k].title) + '</span><span class="evb due">예상 ' + esc(all[k].pre.dir || "✓") + '</span></button>';
+    }).join("") + '</div>';
+  }
+
+  // ---------- 주간 복기
+  var wk = null;
+  var CORE = [["SPX", "S&P"], ["IXIC", "나스닥"], ["KOSPI", "코스피"], ["KOSDAQ", "코스닥"], ["US10Y", "미 10년"], ["USDKRW", "원/달러"], ["WTI", "WTI"]];
+  function weekMoves(m, data) {
+    if (!data) return [];
+    var by = {}; data.indices.forEach(function (i) { by[i.key] = i; });
+    var end = addDays(m, 6), prevEnd = addDays(m, -1);
+    return CORE.map(function (c) {
+      var i = by[c[0]]; if (!i) return null;
+      var a = null, b = null;
+      i.bars.forEach(function (x) { if (x[0] <= prevEnd) a = x; if (x[0] <= end && x[0] >= m) b = x; });
+      if (!a || !b) return null;
+      var rate = i.region === "RATE";
+      return { name: c[1], v: rate ? (b[4] - a[4]) * 100 : (b[4] / a[4] - 1) * 100, rate: rate };
+    }).filter(Boolean);
+  }
+  function renderReview(bundle) {
+    var root = $("rev"); if (!root) return;
+    if (!wk) wk = monday(today());
+    var end = addDays(wk, 6), t = today();
+    var notes = MNOTES.notes(), evs = MNOTES.evs(), w = MNOTES.week(wk) || {};
+    var h = '<section class="panel"><div class="snav"><button class="nav-btn" id="rv-prev" aria-label="지난주">‹</button><span class="sdate num">' + mdw(wk) + ' – ' + mdw(end) + '</span>' +
+      '<button class="nav-btn" id="rv-next" aria-label="다음주"' + (wk >= monday(t) ? " disabled" : "") + '>›</button>' + (wk !== monday(t) ? '<button class="fbtn" id="rv-now">이번 주</button>' : "") + '</div>';
+    var mv = weekMoves(wk, bundle && bundle.data);
+    if (mv.length) h += '<div class="nlab">주간 등락 (전주 마지막 거래일 종가 대비)</div><div class="nchips">' + mv.map(function (m) {
+      var cls = m.v > 0 ? "up" : m.v < 0 ? "down" : "flat";
+      return '<span class="nchip"><b>' + m.name + '</b><span class="num ' + cls + '">' + (m.v > 0 ? "+" : "") + m.v.toFixed(m.rate ? 1 : 2) + (m.rate ? "bp" : "%") + '</span></span>';
+    }).join("") + '</div>';
+    h += '<label class="nlab" for="rv-sum">이번 주 한 줄 정리</label><input id="rv-sum" class="ninput" placeholder="예: 금리 피크아웃 기대 vs 실적 실망, 지수는 박스권" value="' + esc(w.sum || "") + '">' +
+      '<label class="nlab" for="rv-learn">배운 점 · 다음 주에 볼 것</label><textarea id="rv-learn" class="ninput" rows="3">' + esc(w.learn || "") + '</textarea>' +
+      '<div class="nlab" id="rv-status">' + esc(MNOTES.status()) + '</div></section>';
+
+    // 일별 노트
+    h += '<section class="panel"><div class="panel-h"><h2>일별 시장 노트</h2></div>';
+    var any = false;
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(wk, i), n = notes[d];
+      if (!n || !(n.line || n.why)) continue;
+      any = true;
+      var sec = Object.keys(n.sec || {});
+      h += '<button class="nhist" data-goday="' + d + '"><span class="num">' + mdw(d) + '</span><span class="t">' + esc(n.line || n.why.slice(0, 80)) +
+        (sec.length ? ' <span class="nlab" style="font-weight:400">· ' + sec.map(function (s) { return (n.sec[s] === "+" ? "▲" : "▼") + esc(s); }).join(" ") + '</span>' : "") +
+        '</span><span class="tag ' + (n.conf === "상" ? "i" : n.conf === "하" ? "n" : "m") + '">' + esc(n.conf || "-") + '</span></button>';
+    }
+    if (!any) h += '<div class="empty">이번 주에 쓴 노트가 없어요.</div>';
+    h += '</section>';
+
+    // 예상 vs 결과
+    var wkEv = Object.keys(evs).filter(function (k) { var v = evs[k]; return v && v.d >= wk && v.d <= end && v.pre && (v.pre.dir || v.pre.react || v.pre.memo || Object.keys(v.pre.sec || {}).length); })
+      .sort(function (a, b) { return evs[a].d < evs[b].d ? -1 : 1; });
+    var hit = { "적중": 0, "부분": 0, "빗나감": 0 }, pending = 0;
+    wkEv.forEach(function (k) { var x = evs[k].post && evs[k].post.hit; if (x) hit[x]++; else pending++; });
+    var done = hit["적중"] + hit["부분"] + hit["빗나감"];
+    h += '<section class="panel"><div class="panel-h"><h2>예상 vs 결과</h2><span>' + (done ? "적중률 " + Math.round((hit["적중"] + hit["부분"] * 0.5) / done * 100) + "% (부분은 반)" : "") + '</span></div>';
+    if (wkEv.length) {
+      h += '<div class="nchips"><span class="nchip"><b>적중</b><span class="num">' + hit["적중"] + '</span></span><span class="nchip"><b>부분</b><span class="num">' + hit["부분"] + '</span></span><span class="nchip"><b>빗나감</b><span class="num">' + hit["빗나감"] + '</span></span><span class="nchip"><b>결과 대기</b><span class="num">' + pending + '</span></span></div>';
+      wkEv.forEach(function (k) {
+        var v = evs[k];
+        if (!reg[k]) reg[k] = { kind: v.kind, date: v.d, title: v.title, sub: "", actual: "" };
+        h += '<button class="duerow" data-ev="' + esc(k) + '"><span class="num">' + mdw(v.d) + '</span><span class="t">' + esc(v.title) +
+          '<span class="s">예상 ' + esc(v.pre.dir || "-") + (v.pre.react ? " · " + esc(v.pre.react) : "") + (v.post && v.post.actual ? " → 실제 " + esc(v.post.actual) : "") + '</span></span>' +
+          '<span class="evb ' + (!v.post || !v.post.hit ? "due" : v.post.hit === "적중" ? "ok" : v.post.hit === "빗나감" ? "ng" : "mid") + '">' + esc((v.post && v.post.hit) || "대기") + '</span></button>';
+      });
+    } else h += '<div class="empty">이번 주에 예상을 적은 일정이 없어요. 증시 캘린더에서 일정의 ‘예상 적기’를 눌러 보세요.</div>';
+    h += '</section>';
+
+    // 섹터 집계
+    var tally = {};
+    function add(n, dir, res) { var x = tally[n] = tally[n] || { p: 0, m: 0, o: 0, x: 0, dp: 0, dm: 0 }; if (dir === "+") x.p++; else if (dir === "-") x.m++; if (res === "o") x.o++; if (res === "x") x.x++; }
+    wkEv.forEach(function (k) { var v = evs[k], s = v.pre.sec || {}, r = (v.post && v.post.sec) || {}; Object.keys(s).forEach(function (n) { add(n, s[n], r[n]); }); });
+    for (var j = 0; j < 7; j++) { var nn = notes[addDays(wk, j)]; if (nn && nn.sec) Object.keys(nn.sec).forEach(function (n) { add(n, ""); if (nn.sec[n] === "+") tally[n].dp++; else tally[n].dm++; }); }
+    var names = Object.keys(tally).sort(function (a, b) { var A = tally[a], B = tally[b]; return (B.p + B.m + B.dp + B.dm) - (A.p + A.m + A.dp + A.dm); });
+    h += '<section class="panel"><div class="panel-h"><h2>섹터</h2><span>예상에서 고른 ▲수혜·▼부담 · 노트에서 고른 강세·약세 · 예상 맞음/틀림</span></div>';
+    if (names.length) names.forEach(function (n) {
+      var x = tally[n];
+      h += '<div class="secrow"><b>' + esc(n) + '</b><span class="num">' + (x.p ? '<span class="up">▲' + x.p + '</span> ' : "") + (x.m ? '<span class="down">▼' + x.m + '</span> ' : "") + (x.dp || x.dm ? '· 노트 ' + (x.dp ? '<span class="up">▲' + x.dp + '</span> ' : "") + (x.dm ? '<span class="down">▼' + x.dm + '</span>' : "") : "") + '</span><span class="num nlab">' + (x.o + x.x ? "맞음 " + x.o + " · 틀림 " + x.x : "") + '</span></div>';
+    });
+    else h += '<div class="empty">아직 고른 섹터가 없어요.</div>';
+    h += '</section>';
+
+    // 다음 주 예상 적을 일정
+    if (bundle && bundle.macro && wk === monday(t)) {
+      var nm = addDays(wk, 7), ne = addDays(wk, 13);
+      var up = bundle.macro.filter(function (e) { return e.imp === "H" && e.date >= t && e.date <= ne; });
+      h += '<section class="panel"><div class="panel-h"><h2>예상 적을 중요 일정</h2><span>오늘 ~ 다음 주 · ● 중요도 상</span></div>';
+      if (!up.length) h += '<div class="empty">표시할 일정이 없어요.</div>';
+      up.forEach(function (e) {
+        var k = register({ k: "m", e: e }), s = state(k);
+        h += '<button class="duerow" data-ev="' + esc(k) + '"><span class="num">' + mdw(e.date) + '</span><span class="t">' + esc((CTRY[e.country] || "") + " " + e.title) + '<span class="s">' + esc(e.note || "") + '</span></span>' + (s ? badge(k) : '<span class="evb">예상 적기</span>') + '</button>';
+      });
+      h += '</section>';
+    }
+    root.innerHTML = h;
+    $("rv-prev").onclick = function () { flushWeek(); wk = addDays(wk, -7); renderReview(bundle); };
+    $("rv-next").onclick = function () { flushWeek(); wk = addDays(wk, 7); renderReview(bundle); };
+    if ($("rv-now")) $("rv-now").onclick = function () { flushWeek(); wk = monday(today()); renderReview(bundle); };
+    var wt = null;
+    function saveWeek() { clearTimeout(wt); wt = setTimeout(flushWeek, 500); }
+    flushWeek = function () { if (!$("rv-sum")) return; clearTimeout(wt); var v = { sum: $("rv-sum").value, learn: $("rv-learn").value }; var o = MNOTES.week(wk) || {}; if (o.sum === v.sum && o.learn === v.learn) return; MNOTES.setWeek(wk, v); if ($("rv-status")) $("rv-status").textContent = MNOTES.status(); };
+    $("rv-sum").oninput = saveWeek; $("rv-learn").oninput = saveWeek;
+    root.querySelectorAll("[data-goday]").forEach(function (b) { b.onclick = function () { hooks.goDay && hooks.goDay(b.getAttribute("data-goday")); }; });
+  }
+  var flushWeek = function () {};
+  return { decorate: decorate, decorateCompact: decorateCompact, register: register, open: open, dueHTML: dueHTML,
+           secChips: secChips, cycle: cycle, renderReview: renderReview, hooks: hooks, flushWeek: function () { flushWeek(); } };
 })();
 </script>
 <script>
@@ -1075,7 +1422,8 @@ var Study = (function () {
     return esc(x.e.company) + (x.e.op_diff ? " " + esc(x.e.op_diff) : "");
   }
 
-  function itemHTML(x) {
+  function itemHTML(x) { return Loop.decorate(itemHTML0(x), x); }
+  function itemHTML0(x) {
     var e = x.e, cov = isCov(x) ? '<span class="star">★ </span>' : "";
     if (x.k === "u") {
       var us = [];
@@ -1120,7 +1468,8 @@ var Study = (function () {
       (e.time ? " · " + e.time + " 공시" : "") + '</div></div>' + pickBtn("kr", e.code, true) + '</div>';
   }
 
-  function compactHTML(x) {
+  function compactHTML(x) { return Loop.decorateCompact(compactHTML0(x), x); }
+  function compactHTML0(x) {
     var e = x.e, cov = isCov(x) ? '<span class="star">★</span>' : "";
     if (x.k === "u") return '<div class="citem"><span class="tag u">미국 실적</span><span class="t">' + cov + esc(e.symbol) + ' <span style="color:var(--muted)">' + esc(e.name) + '</span></span><span class="r num' + (e.surprise != null ? " " + (e.surprise >= 0 ? "up" : "down") : "") + '">' + (e.surprise != null ? "서프 " + sign(e.surprise, 1) + "%" : e.kst_label ? esc(e.kst_label) : esc(e.timing)) + '</span></div>';
     if (x.k === "m") return '<div class="citem"><span class="tag m">' + (CTRY[e.country] || "글로벌") + '</span><span class="t">' + (e.imp === "H" ? '<span class="star">●</span>' : "") + esc(e.title) + '</span><span class="r num">' + (e.time ? esc(e.time) : "") + '</span></div>';
@@ -1457,6 +1806,7 @@ var Study = (function () {
   var TABS = {
     index: ["app", "tab-index", "미국·한국 지수 일봉", "최근 90거래일 · 일본식 캔들 · 20/50일 이동평균"],
     calendar: ["cal", "tab-calendar", "증시 주요 이벤트 캘린더", "주요국 경제지표·매크로 이벤트 · 한국·미국 실적 발표 일정"],
+    review: ["rev", "tab-review", "주간 복기", "한 주의 노트 · 예상 적중 · 섹터를 한 번에"],
     companies: ["comp", "tab-companies", "미국·한국 기업 리스트", "산업별 분류 · 별을 누른 기업만 캘린더에서 따로 보기"]
   };
   function setTab(name) {
@@ -1469,6 +1819,8 @@ var Study = (function () {
     document.getElementById("subline").textContent = TABS[name][3];
     if (name === "calendar" && cal.data) renderCal();
     if (name === "index") { renderIndex(); }
+    if (name !== "review") Loop.flushWeek();
+    if (name === "review" && BUNDLE) Loop.renderReview(BUNDLE);
     document.getElementById("study").hidden = name !== "index";
   }
 
@@ -1478,6 +1830,8 @@ var Study = (function () {
     document.getElementById("tab-index").addEventListener("click", function () { setTab("index"); });
     document.getElementById("tab-calendar").addEventListener("click", function () { setTab("calendar"); });
     document.getElementById("tab-companies").addEventListener("click", function () { setTab("companies"); });
+    document.getElementById("tab-review").addEventListener("click", function () { setTab("review"); });
+    if (location.hash === "#review") setTab("review");
     if (location.hash === "#calendar") setTab("calendar");
     if (location.hash === "#companies") setTab("companies");
     document.getElementById("lockBtn").addEventListener("click", function () { MS.lock(); });
@@ -1494,6 +1848,13 @@ var Study = (function () {
         if (b.data) render(b.data);
         else fail("지수 데이터가 아직 연결되지 않았어요. 캘린더·노트는 쓸 수 있어요. (telegram-keyword-monitor 저장소에 RA_READ_TOKEN 시크릿 등록 필요)");
         Study.init(b);
+        Loop.hooks.changed.push(function () {
+          if (cal.data) renderCal();
+          Study.refresh();
+          if (!document.getElementById("rev").hidden) Loop.renderReview(BUNDLE);
+        });
+        Loop.hooks.goDay = function (d) { setTab("index"); Study.go(d); window.scrollTo(0, 0); };
+        if (!document.getElementById("rev").hidden) Loop.renderReview(BUNDLE);
         if (document.getElementById("app").hidden) document.getElementById("study").hidden = true;
       });
     }).catch(function (e) { fail("마켓 화면을 열지 못했어요: " + (e && e.message || e)); });
