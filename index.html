@@ -259,7 +259,7 @@ async function useRaw(raw){
 }
 
 // 새 화면이 올라갔는데 기기가 예전 화면을 저장해두고 있으면, 주소를 살짝 바꿔 새로 불러온다
-const VIEWER_VERSION = "c8a205c28b33";
+const VIEWER_VERSION = "a8aac04656e4";
 function needsUpdate(latest){
   if (!latest || latest === VIEWER_VERSION) return false;
   const tried = new URLSearchParams(location.search).get("v");
