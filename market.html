@@ -388,7 +388,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "a8aac04656e4";
+      var ver = "d68a464353c7";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -999,7 +999,7 @@ var Study = (function () {
 
 
   /* ---------------- 증시 캘린더 ---------------- */
-  var CTRY = { KR: "한국", US: "미국", CN: "중국", JP: "일본", EU: "유럽", UK: "영국", GL: "글로벌", AU: "호주", NZ: "뉴질랜드", CA: "캐나다", CH: "스위스" };
+  var CTRY = { KR: "한국", US: "미국", CN: "중국", JP: "일본", EU: "유럽", UK: "영국", GL: "글로벌", AU: "호주", NZ: "뉴질랜드", CA: "캐나다", CH: "스위스", DE: "독일" };
   var KDOW = ["월", "화", "수", "목", "금", "토", "일"];
   var cal = { data: null, month: null, sel: null, types: { m: true, u: true, i: true, p: true }, scope: "big", week: "pick" };
 
@@ -1218,7 +1218,7 @@ var Study = (function () {
     h += '<div class="legend-row"><span><i style="background:var(--muted)"></i>매크로(<span class="star">●</span> 중요도 상)</span><span><i style="background:var(--ma50)"></i>미국 실적(한국 시간 · 시각 미확정은 개장 전·마감 후로 표시)</span><span><i style="background:var(--ir)"></i>한국 실적 발표(예고 공시·실적 IR)</span><span><i style="border:1px solid var(--muted)"></i>IR·NDR(커버리지·내 선택만, 실적 아님)</span><span><i style="background:var(--ma20)"></i>잠정실적 발표</span><span class="star">★ 커버리지·관심·내 선택</span></div>';
     h += '<div class="agenda" id="cal-day">' + dayBlock(cal.sel, mdw(cal.sel)) + '</div></section>';
 
-    h += '<footer class="foot"><div><span>매크로: Forex Factory 경제지표 캘린더(중요도 상 전체 + 미국·중국·유럽·일본은 중 포함, 한국 시간) · 한국 금통위·수출입 고정 일정 · 한국 실적: AWAKE 공시(결산실적 예고·기업설명회·잠정실적, NDR·컨퍼런스는 실적에서 제외) · 미국 실적: Yahoo Finance(기본 보기는 시총 상위 50·섹터별 상위 5·관심·내 선택)</span>' +
+    h += '<footer class="foot"><div><span>매크로: 이번 주는 Forex Factory(중요도·예상치), 그 뒤 몇 주는 Yahoo Finance 경제 캘린더(미국·중국·일본·유럽·영국·한국 핵심 지표만, 한국 시간) · 금통위 고정 일정 · 한국 실적: AWAKE 공시(결산실적 예고·기업설명회·잠정실적, NDR·컨퍼런스는 실적에서 제외) · 미국 실적: Yahoo Finance(기본 보기는 시총 상위 50·섹터별 상위 5·관심·내 선택)</span>' +
       '<span>회사명을 누르면 DART 공시로 이동 · 갱신 ' + esc(D.raw.generated_at_kst || "") + ' KST</span></div></footer>';
 
     var root = document.getElementById("cal");
