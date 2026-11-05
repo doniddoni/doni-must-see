@@ -312,6 +312,12 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .study details > summary { margin-top: 4px; }
 .study details[open] > summary { margin-bottom: 4px; }
 .tag.m { min-width: 18px; text-align: center; }
+.nsave { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.savebtn { font: inherit; font-size: 14px; font-weight: 600; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 8px 22px; cursor: pointer; }
+.savebtn:disabled { opacity: .6; cursor: wait; }
+.nsst { font-size: 12.5px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.nsst.ok { color: var(--accent); font-weight: 600; }
+.nsst.bad { color: var(--up); }
 /* 예상·결과 */
 .evbtn { font: inherit; font-size: 11.5px; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 999px; padding: 1px 8px 1px 6px; margin-left: 6px; cursor: pointer; white-space: nowrap; vertical-align: 1px; }
 .evb { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 5px; margin-right: 4px; background: var(--soft); color: var(--muted); white-space: nowrap; }
@@ -426,7 +432,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "4029216b9f46";
+      var ver = "7782b87bef77";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -478,11 +484,20 @@ var MNOTES = (function () {
   }
   function url() { var s = MS.sync(); return "https://api.github.com/repos/" + s.repo + "/contents/" + PATH; }
   function hdr() { return { Authorization: "Bearer " + MS.sync().token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }; }
+  var lastErr = null, lastOk = 0;
+  function gh(u, opt) {   // 인터넷·회사망 차단 같은 접속 실패를 구분
+    return fetch(u, opt).catch(function () { var e = new Error("net"); e.net = true; throw e; });
+  }
+  function httpErr(r, where) {
+    var e = new Error(where + " " + r.status); e.code = r.status;
+    if (r.status === 401 || r.status === 403) e.auth = true;
+    if (r.status === 404 && where === "put") e.auth = true;   // 저장소에 쓸 권한이 없는 열쇠
+    return e;
+  }
   function fetchRemote() {
-    return fetch(url() + "?ref=" + encodeURIComponent(MS.sync().branch) + "&_=" + Date.now(), { headers: hdr(), cache: "no-store" }).then(function (r) {
+    return gh(url() + "?ref=" + encodeURIComponent(MS.sync().branch) + "&_=" + Date.now(), { headers: hdr(), cache: "no-store" }).then(function (r) {
       if (r.status === 404) return { data: { notes: {}, ev: {}, weeks: {}, picks: null }, sha: null };
-      if (r.status === 401 || r.status === 403) { var e = new Error("auth"); e.auth = true; throw e; }
-      if (!r.ok) throw new Error("remote " + r.status);
+      if (!r.ok) throw httpErr(r, "get");
       return r.json().then(function (j) {
         return MS.open(MS.b64d(j.content.replace(/\s/g, ""))).then(function (u) { return { data: JSON.parse(MS.dec.decode(u)), sha: j.sha }; });
       });
@@ -501,19 +516,18 @@ var MNOTES = (function () {
         return MS.seal(merged).then(function (sealed) {
           var body = { message: "market notes", branch: MS.sync().branch, content: MS.b64e(sealed) };
           if (remote.sha) body.sha = remote.sha;
-          return fetch(url(), { method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, hdr()), body: JSON.stringify(body) });
+          return gh(url(), { method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, hdr()), body: JSON.stringify(body) });
         }).then(function (r) {
-          if (r.status === 409 || r.status === 422) { var e = new Error("conflict"); e.retry = true; throw e; }
-          if (r.status === 401 || r.status === 403) { var e2 = new Error("auth"); e2.auth = true; throw e2; }
-          if (!r.ok) throw new Error("put " + r.status);
+          if (!r.ok) throw httpErr(r, "put");
           return merged;
         });
       }).then(function (merged) {
         data = merge(merged, data);           // 올리는 사이 새로 쓴 내용은 남김
         if (rev === rev0) dirty = false;
-        state = "synced"; saveLocal(); emit();
+        state = "synced"; lastErr = null; lastOk = Date.now(); saveLocal(); emit();
       }).catch(function (e) {
-        state = e.auth ? "auth" : "offline";
+        state = e.auth ? "auth" : "offline"; lastErr = e;
+        try { console.warn("[market notes] 동기화 실패", e.message); } catch (x) {}
         if (!e.auth && attempt++ < 3) return wait(800 * attempt).then(once);
         saveLocal(); emit();
       });
@@ -527,15 +541,29 @@ var MNOTES = (function () {
   function setEv(k, v) { v.t = Date.now(); data.ev[k] = v; dirty = true; rev++; saveLocal(); emit(); schedule(1200); }
   function setWeek(m, v) { v.t = Date.now(); data.weeks[m] = v; dirty = true; rev++; saveLocal(); emit(); schedule(1200); }
   function putPicks(p) { data.picks = p; dirty = true; rev++; saveLocal(); schedule(800); }
+  function reason() {
+    var e = lastErr; if (!e) return "";
+    if (e.net) return "GitHub에 접속하지 못했어요. 인터넷 연결이나 회사·공용 와이파이 차단을 확인해 주세요";
+    if (e.code === 401) return "동기화 열쇠(토큰)가 만료됐어요 (401)";
+    if (e.code === 403 || e.code === 404) return "동기화 열쇠에 저장 권한이 없어요 (" + e.code + ")";
+    if (e.code === 409 || e.code === 422) return "다른 기기와 동시에 저장돼 충돌했어요. 저장을 한 번 더 눌러 주세요 (" + e.code + ")";
+    return "GitHub 오류 (" + (e.code || e.message) + ")";
+  }
+  function hm(t) { var d = new Date(t); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
   function status() {
     if (!MS.sync()) return "이 기기에만 저장돼요";
-    if (state === "auth") return "동기화 열쇠가 만료돼 이 기기에만 저장 중";
-    if (state === "offline") return dirty ? "연결이 안 돼 이 기기에 보관 중 · 다음에 다시 올려요" : "이 기기에 저장됨";
+    if (state === "auth" || state === "offline") return (dirty ? "⚠ 이 기기에만 저장됨 · " : "") + reason();
     if (dirty) return "저장 중…";
-    return state === "synced" ? "저장됨 · 폰·아이패드·PC 같이 보기" : "불러오는 중…";
+    return state === "synced" ? "✓ 저장됨" + (lastOk ? " " + hm(lastOk) : "") + " · 폰·아이패드·PC 같이 보기" : "불러오는 중…";
+  }
+  function saveNow() {
+    clearTimeout(timer);
+    return Promise.resolve(flushing).then(function () { return flush(); })
+      .then(function () { return { ok: state === "synced" && !dirty, msg: status() }; });
   }
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible" && MS.sync()) flush(); });
-  return { init: init, flush: flush, setNote: setNote, putPicks: putPicks, status: status,
+  return { init: init, flush: flush, saveNow: saveNow, setNote: setNote, putPicks: putPicks, status: status,
+           state: function () { return { ok: state === "synced" && !dirty, busy: !!flushing, dirty: dirty }; },
            note: function (d) { return data.notes[d] || null; }, notes: function () { return data.notes; },
            ev: function (k) { return data.ev[k] || null; }, evs: function () { return data.ev; }, setEv: setEv,
            week: function (m) { return data.weeks[m] || null; }, setWeek: setWeek,
@@ -583,7 +611,7 @@ var Study = (function () {
   function render() {
     var root = $("study"); if (!root) return;
     var d = st.date, n = MNOTES.note(d) || blank(), t = today();
-    var h = '<section class="panel study"><div class="panel-h"><h2>시장 노트</h2><span id="ns-status">' + esc(MNOTES.status()) + '</span></div>' +
+    var h = '<section class="panel study"><div class="panel-h"><h2>시장 노트</h2><span id="ns-status"></span></div>' +
       '<div class="snav"><button class="nav-btn" id="n-prev" aria-label="전날">‹</button><span class="sdate num">' + mdw(d) + (d === t ? " 오늘" : "") + '</span>' +
       '<button class="nav-btn" id="n-next" aria-label="다음날"' + (d >= t ? " disabled" : "") + '>›</button>' +
       (d !== t ? '<button class="fbtn" id="n-today">오늘로</button>' : "") + '</div>' +
@@ -595,6 +623,7 @@ var Study = (function () {
       '<textarea id="n-why" class="ninput" rows="3" placeholder="무엇 때문에 움직였는지, 근거가 된 뉴스·지표는 무엇인지">' + esc(n.why) + '</textarea>' +
       '<div class="nconf"><span class="nlab">확신도</span><span class="seg" role="group" aria-label="확신도">' +
       ["상", "중", "하"].map(function (c) { return '<button data-conf="' + c + '" aria-pressed="' + (n.conf === c) + '">' + c + '</button>'; }).join("") + '</span></div>' +
+      '<div class="nsave"><button class="savebtn" id="n-save" type="button">저장</button><span id="n-save-st" class="nsst"></span></div>' +
       '<details id="n-secbox"' + (Object.keys(n.sec || {}).length ? " open" : "") + '><summary>오늘 움직인 섹터 고르기' + secSummary(n) + '</summary><div id="n-sec">' + Loop.secChips(n.sec, "day") + '</div></details>' +
       '<div id="n-refs">' + refsHTML(n) + '</div>' +
       '<details id="n-ms"' + (st.showMs ? " open" : "") + '><summary>그날 Must See에서 근거 고르기</summary><div id="n-ms-list"><div class="empty">불러오는 중…</div></div></details>' +
@@ -640,17 +669,38 @@ var Study = (function () {
   }
   function current() { var n = MNOTES.note(st.date); return n ? JSON.parse(JSON.stringify(n)) : blank(); }
   var saveT = null;
+  function saveLine(t, cls) { var el = $("n-save-st"); if (!el) return; el.textContent = t; el.className = "nsst" + (cls ? " " + cls : ""); }
+  function showSaved() {
+    if (saveT) { saveLine("입력 중 · 저장을 누르면 바로 등록돼요"); return; }
+    var s2 = MNOTES.state(), msg = MNOTES.status();
+    if (s2.ok) saveLine(msg, "ok");
+    else if (s2.busy || /저장 중/.test(msg)) saveLine("저장 중…");
+    else saveLine(msg || "이 기기에 저장됨", /⚠|못|만료|권한|충돌|오류/.test(msg) ? "bad" : "");
+  }
   function saveFields() {
-    clearTimeout(saveT);
+    clearTimeout(saveT); saveLine("입력 중 · 저장을 누르면 바로 등록돼요");
     saveT = setTimeout(function () {
+      saveT = null;
       var n = current(); n.line = $("n-line").value; n.why = $("n-why").value; MNOTES.setNote(st.date, n);
-    }, 500);
+    }, 800);
+  }
+  function saveClick() {
+    var b = $("n-save"); clearTimeout(saveT); saveT = null;
+    var n = current(); n.line = $("n-line").value; n.why = $("n-why").value; MNOTES.setNote(st.date, n);
+    b.disabled = true; b.textContent = "저장 중…"; saveLine("저장 중…");
+    MNOTES.saveNow().then(function (r) {
+      b.disabled = false; b.textContent = r.ok ? "저장됨 ✓" : "다시 저장";
+      setTimeout(function () { if ($("n-save") === b && b.textContent === "저장됨 ✓") b.textContent = "저장"; }, 2500);
+      showSaved();
+    });
   }
   function wire() {
     $("n-prev").onclick = function () { go(addDays(st.date, -1)); };
     $("n-next").onclick = function () { go(addDays(st.date, 1)); };
     if ($("n-today")) $("n-today").onclick = function () { go(today()); };
     $("n-line").oninput = saveFields; $("n-why").oninput = saveFields;
+    $("n-save").onclick = saveClick;
+    showSaved();
     document.querySelectorAll("[data-conf]").forEach(function (b) {
       b.onclick = function () {
         var n = current(); n.line = $("n-line").value; n.why = $("n-why").value;
@@ -677,7 +727,8 @@ var Study = (function () {
   function refreshParts() {
     if (!$("n-refs")) return;
     var n = MNOTES.note(st.date) || blank();
-    $("ns-status").textContent = MNOTES.status();
+    $("ns-status").textContent = "";
+    showSaved();
     if ($("n-due")) $("n-due").innerHTML = Loop.dueHTML();
     $("n-refs").innerHTML = refsHTML(n); wireRefs();
     document.querySelectorAll("[data-conf]").forEach(function (b) { b.setAttribute("aria-pressed", String(n.conf === b.getAttribute("data-conf"))); });
