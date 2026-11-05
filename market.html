@@ -312,6 +312,38 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .study details > summary { margin-top: 4px; }
 .study details[open] > summary { margin-bottom: 4px; }
 .tag.m { min-width: 18px; text-align: center; }
+/* 장중 타임라인 */
+.tl-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tl-chips .fbtn:disabled { opacity: .35; cursor: default; }
+.tl-read { font-size: 12.5px; color: var(--muted); min-height: 1.4em; }
+.tl-read b { color: var(--ink); }
+.tl-charts { display: grid; gap: 6px; touch-action: pan-y; cursor: crosshair; }
+.tl-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+.tl-h b { font-weight: 600; }
+.tl-h small { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.tl-svg { display: block; width: 100%; height: 56px; background: var(--card); }
+.tl-kr { fill: var(--accent-soft); opacity: .7; }
+.tl-us { fill: var(--p-soft); opacity: .8; }
+.tl-zero { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tl-line { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.tl-line.up { stroke: var(--up); } .tl-line.down { stroke: var(--down); } .tl-line.flat { stroke: var(--flat); }
+.tl-ev { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: .35; vector-effect: non-scaling-stroke; }
+.tl-ev.h { stroke: var(--ma20); opacity: .9; }
+.tl-cur { stroke: var(--ink); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tl-strip { display: block; width: 100%; height: 26px; cursor: pointer; touch-action: pan-y; }
+.tl-evdot { fill: var(--ma20); }
+.tl-msdot { fill: var(--accent); opacity: .8; }
+.tl-axis { position: relative; height: 16px; font-size: 11px; color: var(--muted); }
+.tl-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.tl-axis span:first-child { transform: none; } .tl-axis span:last-child { transform: translateX(-100%); }
+.tl-list { display: grid; }
+.tl-it { display: grid; grid-template-columns: 44px auto minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 7px 4px; border-top: 1px solid var(--line); font-size: 13.5px; border-radius: 6px; }
+.tl-it .s { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.tl-it .s a { color: var(--accent); }
+.tl-it.hl { background: var(--accent-soft); }
+.autog { font-weight: 400; margin-top: 2px; }
+.secchk .seg { flex: none; } .secchk .seg button, .sheet .seg button { white-space: nowrap; }
+.glist { display: grid; gap: 2px; margin-top: 6px; }
 .nsave { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .savebtn { font: inherit; font-size: 14px; font-weight: 600; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 8px 22px; cursor: pointer; }
 .savebtn:disabled { opacity: .6; cursor: wait; }
@@ -339,7 +371,7 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .sec { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
 .sec.plus { border-color: var(--up); color: var(--up); background: color-mix(in srgb, var(--up) 9%, var(--card)); }
 .sec.minus { border-color: var(--down); color: var(--down); background: color-mix(in srgb, var(--down) 9%, var(--card)); }
-.secchk { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.secchk { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 1px solid var(--line); }
 .secchk .sec { cursor: default; }
 .duebox { background: var(--p-soft); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; }
 .duerow { font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--line); padding: 7px 0; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13.5px; }
@@ -373,6 +405,7 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 <div class="gutter pagehead"><h2 id="headline">미국·한국 지수 일봉</h2><p id="subline">최근 90거래일 · 일본식 캔들 · 20/50일 이동평균</p></div>
 
 <section class="gutter study-wrap" id="study" aria-label="시장 노트"></section>
+<section class="gutter study-wrap" id="tl" aria-label="장중 타임라인"></section>
 
 <main class="gutter" id="app" role="tabpanel" aria-labelledby="tab-index">
   <div class="msg" id="loading">지수 데이터를 불러오는 중입니다.</div>
@@ -417,6 +450,7 @@ var MS = (function () {
     return crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(0, 12) }, key, bytes.slice(12)).then(function (b) { return new Uint8Array(b); });
   }
   function openJSON(p) { return fetchBin(p).then(open).then(function (u) { return JSON.parse(dec.decode(u)); }); }
+  function openGz(p) { return fetchBin(p).then(open).then(function (u) { return gunzip(u); }).then(JSON.parse); }
   function seal(obj) {
     var iv = crypto.getRandomValues(new Uint8Array(12));
     return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, enc.encode(JSON.stringify(obj))).then(function (ct) {
@@ -432,7 +466,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "7782b87bef77";
+      var ver = "44c425923e4e";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -457,7 +491,7 @@ var MS = (function () {
     });
   }
   function lock() { try { localStorage.removeItem(LS); sessionStorage.removeItem(LS); } catch (e) {} location.replace("index.html"); }
-  return { boot: boot, loadIndex: loadIndex, loadDay: loadDay, seal: seal, open: open, b64d: b64d, b64e: b64e, dec: dec,
+  return { boot: boot, loadIndex: loadIndex, loadDay: loadDay, seal: seal, open: open, openGz: openGz, b64d: b64d, b64e: b64e, dec: dec,
            salt: function () { return meta && meta.salt; }, sync: function () { return sync; }, lock: lock };
 })();
 
@@ -624,7 +658,7 @@ var Study = (function () {
       '<div class="nconf"><span class="nlab">확신도</span><span class="seg" role="group" aria-label="확신도">' +
       ["상", "중", "하"].map(function (c) { return '<button data-conf="' + c + '" aria-pressed="' + (n.conf === c) + '">' + c + '</button>'; }).join("") + '</span></div>' +
       '<div class="nsave"><button class="savebtn" id="n-save" type="button">저장</button><span id="n-save-st" class="nsst"></span></div>' +
-      '<details id="n-secbox"' + (Object.keys(n.sec || {}).length ? " open" : "") + '><summary>오늘 움직인 섹터 고르기' + secSummary(n) + '</summary><div id="n-sec">' + Loop.secChips(n.sec, "day") + '</div></details>' +
+      '<details id="n-secbox"' + (Object.keys(n.sec || {}).length ? " open" : "") + '><summary>오늘 움직인 자산·섹터 고르기' + secSummary(n) + '</summary><div id="n-sec">' + Loop.secChips(n.sec, "day") + gradeList(n) + '</div></details>' +
       '<div id="n-refs">' + refsHTML(n) + '</div>' +
       '<details id="n-ms"' + (st.showMs ? " open" : "") + '><summary>그날 Must See에서 근거 고르기</summary><div id="n-ms-list"><div class="empty">불러오는 중…</div></div></details>' +
       '<details id="n-hist"><summary>최근 노트</summary>' + histHTML() + '</details>' +
@@ -632,6 +666,7 @@ var Study = (function () {
     root.innerHTML = h;
     wire();
     loadMs();
+    if (window.Timeline) Timeline.show(st.date);
   }
   function refsHTML(n) {
     var refs = n.refs || [];
@@ -642,9 +677,16 @@ var Study = (function () {
         '<button class="pickbtn sm" data-unref="' + i + '" aria-label="근거에서 빼기">✕</button></div>';
     }).join("");
   }
+  function gradeList(n) {
+    var ks = Object.keys(n.sec || {}); if (!ks.length) return "";
+    return '<div class="glist">' + ks.map(function (k) {
+      var g = Grade.grade(k, n.sec[k], { note: st.date }); if (!g) return "";
+      return '<div class="nlab autog">' + (g.res === "o" ? "✓ " : g.res === "x" ? "✗ " : "· ") + (n.sec[k] === "+" ? "▲" : "▼") + esc(k) + " — " + esc(g.text) + '</div>';
+    }).join("") + '</div>';
+  }
   function secSummary(n) {
     var ks = Object.keys(n.sec || {}); if (!ks.length) return "";
-    return ' <span class="nlab" style="font-weight:400">' + ks.map(function (k) { return (n.sec[k] === "+" ? "▲" : "▼") + esc(k); }).join(" ") + '</span>';
+    return ' <span class="nlab" style="font-weight:400">' + ks.map(function (k) { var g = Grade.grade(k, n.sec[k], { note: st.date }); return (n.sec[k] === "+" ? "▲" : "▼") + esc(k) + (g && g.res ? (g.res === "o" ? " ✓" : " ✗") : ""); }).join(" ") + '</span>';
   }
   function wireSec() {
     var box = $("n-sec"); if (!box) return;
@@ -653,8 +695,8 @@ var Study = (function () {
         var name = b.getAttribute("data-sec").split("|")[1];
         var n = current(); n.line = $("n-line").value; n.why = $("n-why").value; n.sec = n.sec || {};
         var v = Loop.cycle(n.sec[name]); if (v) n.sec[name] = v; else delete n.sec[name];
-        NSET(n); box.innerHTML = Loop.secChips(n.sec, "day"); wireSec();
-        var sm = $("n-secbox").querySelector("summary"); sm.innerHTML = "오늘 움직인 섹터 고르기" + secSummary(n);
+        NSET(n); box.innerHTML = Loop.secChips(n.sec, "day") + gradeList(n); wireSec();
+        var sm = $("n-secbox").querySelector("summary"); sm.innerHTML = "오늘 움직인 자산·섹터 고르기" + secSummary(n);
       };
     });
   }
@@ -762,30 +804,34 @@ var Study = (function () {
           var v = b.getAttribute("data-ref").split("|"), day = v[0], id = v[1];
           var items = ((day === d ? r[0] : r[1]) || { items: [] }).items;
           var it = items.filter(function (x) { return String(x.id) === id; })[0]; if (!it) return;
-          var n = current(); n.line = $("n-line").value; n.why = $("n-why").value;
-          n.refs = n.refs || [];
-          n.refs.push({ id: id, d: day, ch: it.src.name, when: mdw(day).slice(0, -3) + " " + (it.time || ""), s: (text(it.html) || (it.web && it.web.title) || "").slice(0, 220), link: it.orig_link || it.link || "" });
-          MNOTES.setNote(st.date, n); refreshParts(); loadMs();
+          attach(it, day);
         };
       });
     });
   }
 
+  function attach(it, day) {
+    var n = current(); n.line = $("n-line").value; n.why = $("n-why").value;
+    n.refs = n.refs || [];
+    if (n.refs.some(function (r) { return String(r.id) === String(it.id); })) return;
+    n.refs.push({ id: String(it.id), d: day, ch: it.src.name, when: mdw(day).slice(0, -3) + " " + (it.time || ""), s: (text(it.html) || (it.web && it.web.title) || "").slice(0, 220), link: it.orig_link || it.link || "" });
+    MNOTES.setNote(st.date, n); refreshParts(); loadMs();
+  }
   function init(bundle) {
     st.bundle = bundle; st.date = today();
     MNOTES.on(refreshParts);
     render();
   }
-  return { init: init, rerender: function () { if (st.date) render(); }, go: function (d) { go(d); }, refresh: function () { refreshParts(); } };
+  return { init: init, rerender: function () { if (st.date) render(); }, go: function (d) { go(d); }, refresh: function () { refreshParts(); }, attach: attach };
 })();
 </script>
 <script>
 /* 사전 예상 → 사후 확인 루프 + 주간 복기
    저장: MNOTES 의 ev(일정별 예상·결과), weeks(주간 정리). 일정 키 = 종류|날짜|나라·종목|이름 */
 var SECTORS = {
-  "내 커버리지": ["엔터", "미디어·콘텐츠", "레저·여행·카지노", "통신", "인터넷·게임"],
-  "산업": ["반도체", "2차전지", "자동차", "조선·방산·기계", "바이오", "은행·보험", "증권", "건설·부동산", "화학·정유", "철강·소재", "유통·소비재", "항공·해운", "유틸리티"],
-  "스타일": ["성장주", "가치주", "수출주", "내수주", "중소형주"]
+  "자산 (▲상승 ▼하락)": ["미국 주식", "나스닥", "미국 소형주", "코스피", "코스닥", "미 국채금리", "달러", "원/달러", "유가", "금", "변동성(VIX)"],
+  "미국 섹터 (▲S&P보다 강세 ▼약세)": ["기술", "반도체", "커뮤니케이션", "경기소비재", "필수소비재", "헬스케어", "금융", "산업재", "에너지", "소재", "유틸리티", "부동산"],
+  "스타일 (S&P 대비)": ["성장주", "가치주"]
 };
 var Loop = (function () {
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
@@ -808,7 +854,7 @@ var Loop = (function () {
   }
   function info(x) {
     var e = x.e;
-    if (x.k === "m") return { kind: "m", date: e.date, title: (CTRY[e.country] || "") + " " + e.title, sub: e.note || "", actual: e.actual || "", forecast: e.forecast || "", imp: e.imp };
+    if (x.k === "m") return { kind: "m", date: e.date, time: e.time || "", title: (CTRY[e.country] || "") + " " + e.title, sub: e.note || "", actual: e.actual || "", forecast: e.forecast || "", imp: e.imp };
     if (x.k === "u") return { kind: "u", date: e.date, title: e.name + " (" + e.symbol + ") 실적", sub: [e.timing, e.kst_label ? "한국 " + e.kst_label : "", e.eps_est != null ? "EPS 추정 " + e.eps_est : ""].filter(Boolean).join(" · "), actual: e.eps_act != null ? "EPS " + e.eps_act + (e.surprise != null ? " (서프 " + (e.surprise > 0 ? "+" : "") + Number(e.surprise).toFixed(1) + "%)" : "") : "" };
     if (x.k === "p") return { kind: "p", date: e.date, title: e.company + " 잠정실적", sub: e.period || "", actual: [e.op ? "영업익 " + e.op : "", e.op_diff ? "컨센 " + e.op_diff : ""].filter(Boolean).join(" · ") };
     return { kind: x.k, date: e.date, title: e.company + (x.k === "n" ? " IR" : " 실적 발표"), sub: [e.period, e.time].filter(Boolean).join(" · "), actual: "" };
@@ -849,7 +895,7 @@ var Loop = (function () {
         var v = map[n] || "";
         return '<button class="sec ' + (v === "+" ? "plus" : v === "-" ? "minus" : "") + '" data-sec="' + esc(scope) + '|' + esc(n) + '">' + (v === "+" ? "▲ " : v === "-" ? "▼ " : "") + esc(n) + '</button>';
       }).join("") + '</div></div>';
-    }).join("") + '<div class="nlab">한 번 누르면 ▲수혜, 두 번 ▼부담, 세 번 해제</div>';
+    }).join("") + '<div class="nlab">한 번 누르면 ▲, 두 번 ▼, 세 번 해제 · 실제 시세로 자동 채점돼요</div>';
   }
   function cycle(v) { return v === "" || v == null ? "+" : v === "+" ? "-" : ""; }
 
@@ -881,15 +927,18 @@ var Loop = (function () {
     var sec = (v.pre && v.pre.sec) || {}, names = Object.keys(sec);
     if (!names.length) return "";
     var ps = (v.post && v.post.sec) || {};
-    return '<div class="nlab">섹터 예상 맞았나</div>' + names.map(function (n) {
-      return '<div class="secchk"><span class="sec ' + (sec[n] === "+" ? "plus" : "minus") + '">' + (sec[n] === "+" ? "▲ " : "▼ ") + esc(n) + '</span><span class="seg" data-grp="psec" data-n="' + esc(n) + '">' +
-        [["o", "맞음"], ["x", "틀림"]].map(function (c) { return '<button data-v="' + c[0] + '" aria-pressed="' + (ps[n] === c[0]) + '">' + c[1] + '</button>'; }).join("") + '</span></div>';
+    var ref = { d: v.d || (reg[cur] || {}).date, time: v.time || (reg[cur] || {}).time };
+    return '<div class="nlab">섹터·자산 예상 맞았나 · 자동 채점, 다르게 보면 직접 고치세요</div>' + names.map(function (n) {
+      var g = Grade.grade(n, sec[n], ref), val = ps[n] || (g && g.res) || "";
+      return '<div class="secchk"><div><span class="sec ' + (sec[n] === "+" ? "plus" : "minus") + '">' + (sec[n] === "+" ? "▲ " : "▼ ") + esc(n) + '</span>' +
+        (g ? '<div class="nlab autog">' + (ps[n] ? "직접 · " : g.res ? "자동 · " : "") + esc(g.text) + '</div>' : "") + '</div><span class="seg" data-grp="psec" data-n="' + esc(n) + '">' +
+        [["o", "맞음"], ["x", "틀림"]].map(function (c) { return '<button data-v="' + c[0] + '" aria-pressed="' + (val === c[0]) + '">' + c[1] + '</button>'; }).join("") + '</span></div>';
     }).join("");
   }
   function read() {
     var v = clone(MNOTES.ev(cur)); v.pre = v.pre || {}; v.post = v.post || {};
     var it = reg[cur];
-    v.d = it.date; v.title = it.title; v.kind = it.kind;
+    v.d = it.date; v.title = it.title; v.kind = it.kind; if (it.time) v.time = it.time;
     v.pre.react = $("ev-react").value; v.pre.memo = $("ev-pmemo").value;
     v.post.actual = $("ev-act").value; v.post.memo = $("ev-qmemo").value;
     return v;
@@ -1023,7 +1072,8 @@ var Loop = (function () {
     // 섹터 집계
     var tally = {};
     function add(n, dir, res) { var x = tally[n] = tally[n] || { p: 0, m: 0, o: 0, x: 0, dp: 0, dm: 0 }; if (dir === "+") x.p++; else if (dir === "-") x.m++; if (res === "o") x.o++; if (res === "x") x.x++; }
-    wkEv.forEach(function (k) { var v = evs[k], s = v.pre.sec || {}, r = (v.post && v.post.sec) || {}; Object.keys(s).forEach(function (n) { add(n, s[n], r[n]); }); });
+    wkEv.forEach(function (k) { var v = evs[k], s = v.pre.sec || {}, r = (v.post && v.post.sec) || {}; Object.keys(s).forEach(function (n) { var g = r[n] ? null : Grade.grade(n, s[n], { d: v.d, time: v.time }); add(n, s[n], r[n] || (g && g.res)); }); });
+    for (var jj = 0; jj < 7; jj++) { var dd = addDays(wk, jj), no = notes[dd]; if (no && no.sec) Object.keys(no.sec).forEach(function (n) { var g = Grade.grade(n, no.sec[n], { note: dd }); if (g && g.res) { tally[n] = tally[n] || { p: 0, m: 0, o: 0, x: 0, dp: 0, dm: 0 }; tally[n][g.res]++; } }); }
     for (var j = 0; j < 7; j++) { var nn = notes[addDays(wk, j)]; if (nn && nn.sec) Object.keys(nn.sec).forEach(function (n) { add(n, ""); if (nn.sec[n] === "+") tally[n].dp++; else tally[n].dm++; }); }
     var names = Object.keys(tally).sort(function (a, b) { var A = tally[a], B = tally[b]; return (B.p + B.m + B.dp + B.dm) - (A.p + A.m + A.dp + A.dm); });
     h += '<section class="panel"><div class="panel-h"><h2>섹터</h2><span>예상에서 고른 ▲수혜·▼부담 · 노트에서 고른 강세·약세 · 예상 맞음/틀림</span></div>';
@@ -1059,6 +1109,225 @@ var Loop = (function () {
   var flushWeek = function () {};
   return { decorate: decorate, decorateCompact: decorateCompact, register: register, open: open, dueHTML: dueHTML,
            secChips: secChips, cycle: cycle, renderReview: renderReview, hooks: hooks, flushWeek: function () { flushWeek(); } };
+})();
+</script>
+<script>
+/* 섹터·자산 예상 자동 채점
+   자산: 그 거래일에 오르면 ▲ 맞음, 내리면 ▼ 맞음 (금리는 bp)
+   미국 섹터·스타일: ETF 등락률이 S&P 500(SPY)보다 높으면 ▲ 맞음 */
+var GMAP = {
+  "미국 주식": ["a", "SPX"], "나스닥": ["a", "IXIC"], "미국 소형주": ["a", "RUT"], "코스피": ["a", "KOSPI"], "코스닥": ["a", "KOSDAQ"],
+  "미 국채금리": ["a", "US10Y"], "달러": ["a", "DXY"], "원/달러": ["a", "USDKRW"], "유가": ["a", "WTI"], "금": ["a", "GOLD"], "변동성(VIX)": ["a", "VIX"],
+  "기술": ["s", "XLK"], "반도체": ["s", "SOXX"], "커뮤니케이션": ["s", "XLC"], "경기소비재": ["s", "XLY"], "필수소비재": ["s", "XLP"], "헬스케어": ["s", "XLV"],
+  "금융": ["s", "XLF"], "산업재": ["s", "XLI"], "에너지": ["s", "XLE"], "소재": ["s", "XLB"], "유틸리티": ["s", "XLU"], "부동산": ["s", "XLRE"],
+  "성장주": ["s", "IVW"], "가치주": ["s", "IVE"]
+};
+var Grade = (function () {
+  var B = null, idx = {}, KR = { KOSPI: 1, KOSDAQ: 1, USDKRW: 1 };
+  function init(b) {
+    B = b; idx = {};
+    ((b && b.data && b.data.indices) || []).forEach(function (i) { idx[i.key] = i.bars.map(function (x) { return [x[0], x[4]]; }); });
+  }
+  function series(g) { return g[0] === "a" ? idx[g[1]] : (B && B.sec && B.sec[g[1]]); }
+  function md(s) { return (+s.slice(5, 7)) + "/" + (+s.slice(8, 10)); }
+  function usDST(t) {   // 미국 서머타임: 3월 둘째 일요일 ~ 11월 첫째 일요일
+    var d = new Date(t), y = d.getUTCFullYear();
+    var m = new Date(Date.UTC(y, 2, 1)), n = new Date(Date.UTC(y, 10, 1));
+    var s = Date.UTC(y, 2, 1 + ((7 - m.getUTCDay()) % 7) + 7, 7), e = Date.UTC(y, 10, 1 + ((7 - n.getUTCDay()) % 7), 6);
+    return t >= s && t < e;
+  }
+  // 어느 거래일 봉으로 채점할지: 노트는 그날(미국은 전날 밤 마감분), 일정은 발표 뒤 첫 거래일
+  function pick(bars, ref, kr) {
+    if (!bars || bars.length < 2) return -1;
+    var i;
+    if (ref.note) {
+      for (i = bars.length - 1; i >= 1; i--) if (kr ? bars[i][0] <= ref.note : bars[i][0] < ref.note) return i;
+      return -1;
+    }
+    var target, strict = false;
+    if (kr) { target = ref.d; strict = !!(ref.time && ref.time >= "15:30"); }
+    else {
+      var t = Date.parse(ref.d + "T" + (ref.time || "12:00") + ":00+09:00");
+      var et = new Date(t - (usDST(t) ? 4 : 5) * 3600e3);
+      target = et.toISOString().slice(0, 10); strict = !!(ref.time && et.getUTCHours() >= 16);
+    }
+    for (i = 1; i < bars.length; i++) if (strict ? bars[i][0] > target : bars[i][0] >= target) return i;
+    return -1;
+  }
+  function pct(b, i) { return (b[i][1] / b[i - 1][1] - 1) * 100; }
+  function sg(v, d, u) { return (v > 0 ? "+" : "") + v.toFixed(d) + u; }
+  function grade(name, dir, ref) {
+    var g = GMAP[name]; if (!g || !dir || !B) return null;
+    var bars = series(g), kr = g[0] === "a" && KR[g[1]], i = pick(bars, ref, kr);
+    if (i < 0) return { res: "", text: "해당 거래일 데이터 대기" };
+    var day = bars[i][0];
+    if (g[0] === "a") {
+      var rate = g[1] === "US10Y", ch = rate ? (bars[i][1] - bars[i - 1][1]) * 100 : pct(bars, i);
+      if (!ch) return { res: "", text: name + " 보합 (" + md(day) + ")" };
+      return { res: (dir === "+") === (ch > 0) ? "o" : "x", text: name + " " + sg(ch, rate ? 1 : 2, rate ? "bp" : "%") + " (" + md(day) + ")" };
+    }
+    var spy = series(["s", "SPY"]); if (!spy) return null;
+    var j = -1; for (var k = 1; k < spy.length; k++) if (spy[k][0] === day) j = k;
+    if (j < 0) return { res: "", text: "S&P 데이터 대기" };
+    var a = pct(bars, i), m = pct(spy, j), rel = a - m;
+    return { res: (dir === "+") === (rel > 0) ? "o" : "x", text: g[1] + " " + sg(a, 2, "%") + " vs S&P " + sg(m, 2, "%") + " (" + md(day) + ")" };
+  }
+  return { init: init, grade: grade };
+})();
+
+/* 장중 타임라인: 08:00 ~ 다음날 08:00 (KST) 5분봉 + 지표 발표 시각 + Must See 글 시각 */
+var Timeline = (function () {
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  var ORDER = ["ES", "NQ", "SPX", "IXIC", "KOSPI", "KOSDAQ", "N225", "HSI", "US10Y", "USDKRW", "DXY", "WTI", "GOLD", "VIX"];
+  var DEF = ["ES", "NQ", "KOSPI", "US10Y", "USDKRW"];
+  var B = null, cache = {}, sel = DEF.slice(), st = { date: null, data: null, ms: [], ev: [] };
+  try { var s0 = JSON.parse(localStorage.getItem("tlSel") || "null"); if (s0 && s0.length) sel = s0; } catch (e) {}
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function addDays(s, n) { var d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function mdw(s) { var d = new Date(s + "T00:00:00Z"); return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "(" + DOW[d.getUTCDay()] + ")"; }
+  function hm(m) { var t = (m + 480) % 1440; return ("0" + Math.floor(t / 60)).slice(-2) + ":" + ("0" + t % 60).slice(-2); }
+  function minOf(date, dt) {   // "YYYY-MM-DD HH:MM" (KST) → 창 시작(date 08:00)부터 몇 분
+    var t = Date.parse(dt.replace(" ", "T") + ":00+09:00"), s = Date.parse(date + "T08:00:00+09:00");
+    return Math.round((t - s) / 60000);
+  }
+  function usDST(date) { var t = Date.parse(date + "T12:00:00Z"), d = new Date(t), y = d.getUTCFullYear(); var m = new Date(Date.UTC(y, 2, 1)), n = new Date(Date.UTC(y, 10, 1)); return t >= Date.UTC(y, 2, 1 + ((7 - m.getUTCDay()) % 7) + 7) && t < Date.UTC(y, 10, 1 + ((7 - n.getUTCDay()) % 7)); }
+  function text(html) { var d = document.createElement("div"); d.innerHTML = String(html || "").replace(/<br\s*\/?>/gi, " "); return (d.textContent || "").replace(/\s+/g, " ").trim(); }
+
+  function init(b) { B = b; }
+  function show(date) {
+    st.date = date; st.data = null; st.ms = []; st.ev = [];
+    var root = $("tl"); if (!root || !B) return;
+    var rel = B.intra && B.intra[date];
+    root.innerHTML = '<section class="panel tl"><div class="panel-h"><h2>장중 타임라인</h2><span>' + mdw(date) + ' 08:00 → ' + mdw(addDays(date, 1)) + ' 08:00 · 08시·23시 갱신</span></div>' +
+      '<div id="tl-body"><div class="empty">' + (rel ? "불러오는 중…" : "이 날은 장중 데이터가 없어요. 11월 5일부터 쌓이고 있어요.") + '</div></div></section>';
+    // 지표 발표
+    (B.macro || []).forEach(function (e) {
+      if (!e.time) return;
+      var m = minOf(date, e.date + " " + e.time); if (m < 0 || m >= 1440) return;
+      st.ev.push({ m: m, e: e });
+    });
+    var d0 = date;
+    var pData = rel ? (cache[rel] || (cache[rel] = MS.openGz(rel))) : Promise.resolve(null);
+    var pMs = Promise.all([MS.loadDay(addDays(date, -1)).catch(function () { return null; }), MS.loadDay(date).catch(function () { return null; }), MS.loadDay(addDays(date, 1)).catch(function () { return null; })]);
+    Promise.all([pData.catch(function () { return null; }), pMs]).then(function (r) {
+      if (st.date !== d0 || !$("tl-body")) return;
+      st.data = r[0];
+      var seen = {};
+      r[1].forEach(function (day) {
+        ((day && day.items) || []).forEach(function (it) {
+          if (seen[it.id]) return;
+          var when = it.orig || (day.date + " " + (it.time || "00:00"));
+          var m = minOf(d0, when.slice(0, 16)); if (m < 0 || m >= 1440) return;
+          seen[it.id] = 1; st.ms.push({ m: m, it: it, day: day.date });
+        });
+      });
+      st.ms.sort(function (a, b) { return a.m - b.m; });
+      draw();
+    });
+  }
+  function lastAt(arr, m) { var v = null; for (var i = 0; i < arr.length && arr[i][0] <= m; i++) v = arr[i][1]; return v; }
+  function chgText(key, kind, base, v) {
+    if (v == null || base == null) return "-";
+    var c = kind === "rate" ? (v - base) * 100 : (v / base - 1) * 100;
+    return '<span class="' + (c > 0 ? "up" : c < 0 ? "down" : "flat") + '">' + (c > 0 ? "+" : "") + c.toFixed(kind === "rate" ? 1 : 2) + (kind === "rate" ? "bp" : "%") + '</span>';
+  }
+  function draw() {
+    var body = $("tl-body"); if (!body) return;
+    var D = st.data, names = (D && D.names) || {};
+    var avail = ORDER.filter(function (k) { return D && D.s[k] && D.s[k].length; });
+    var h = '<div class="tl-chips">' + ORDER.map(function (k) {
+      var on = sel.indexOf(k) >= 0, has = avail.indexOf(k) >= 0;
+      return '<button class="fbtn" data-tl="' + k + '" aria-pressed="' + on + '"' + (has ? "" : " disabled") + '>' + esc((names[k] || [k])[0]) + '</button>';
+    }).join("") + '</div>';
+    if (!D) { body.innerHTML = h + '<div class="empty">이 날은 장중 데이터가 없어요.</div>' + listHTML(); wire(); return; }
+    var dst = usDST(st.date), us0 = dst ? 870 : 930, us1 = dst ? 1260 : 1320;
+    h += '<div class="tl-read num" id="tl-read">차트를 누르거나 손가락을 대면 그 시각 값을 보여줘요</div><div class="tl-charts" id="tl-charts">';
+    sel.filter(function (k) { return avail.indexOf(k) >= 0; }).forEach(function (k) {
+      var arr = D.s[k], kind = (names[k] || [k, "px"])[1];
+      h += '<div class="tl-row" data-k="' + k + '"><div class="tl-h"><b>' + esc((names[k] || [k])[0]) + '</b><span class="num" data-v="' + k + '">' + chgText(k, kind, arr[0][1], arr[arr.length - 1][1]) + ' <small>' + hm(arr[arr.length - 1][0]) + '</small></span></div>' +
+        '<svg class="tl-svg" data-k="' + k + '" preserveAspectRatio="none" viewBox="0 0 1440 60" aria-hidden="true">' +
+        '<rect x="60" y="0" width="390" height="60" class="tl-kr"/><rect x="' + us0 + '" y="0" width="' + (us1 - us0) + '" height="60" class="tl-us"/>' +
+        st.ev.map(function (x) { return '<line x1="' + x.m + '" x2="' + x.m + '" y1="0" y2="60" class="tl-ev' + (x.e.imp === "H" ? " h" : "") + '"/>'; }).join("") +
+        path(arr, kind) + '<line class="tl-cur" x1="-10" x2="-10" y1="0" y2="60"/></svg></div>';
+    });
+    h += '</div>';
+    // 아래 띠: 지표(◆)·Must See(●)
+    h += '<svg class="tl-strip" viewBox="0 0 1440 26" preserveAspectRatio="none" aria-hidden="true">' +
+      st.ev.filter(function (x) { return x.e.imp === "H"; }).map(function (x) { return '<rect x="' + (x.m - 6) + '" y="2" width="12" height="9" class="tl-evdot"/>'; }).join("") +
+      st.ms.map(function (x) { return '<circle cx="' + x.m + '" cy="19" r="5" class="tl-msdot"/>'; }).join("") +
+      '<line class="tl-cur" x1="-10" x2="-10" y1="0" y2="26"/></svg>';
+    h += '<div class="tl-axis num">' + [0, 240, 480, 720, 960, 1200, 1440].map(function (m) { return '<span style="left:' + (m / 14.4) + '%">' + (((m / 60) + 8) % 24) + '시</span>'; }).join("") + '</div>';
+    h += '<div class="legend-row"><span><i style="background:var(--accent-soft)"></i>한국장 09:00~15:30</span><span><i style="background:var(--p-soft)"></i>미국 정규장 ' + hm(us0) + '~' + hm(us1) + '</span><span><i style="background:var(--ma20)"></i>주요 지표 발표</span><span><i style="background:var(--accent)"></i>Must See 글</span><span>선은 08시 대비 등락 · 금리는 bp</span></div>';
+    body.innerHTML = h + listHTML();
+    wire();
+  }
+  function path(arr, kind) {
+    var base = arr[0][1], ys = arr.map(function (p) { return kind === "rate" ? (p[1] - base) * 100 : (p[1] / base - 1) * 100; });
+    var lo = Math.min.apply(null, ys.concat([0])), hi = Math.max.apply(null, ys.concat([0])), sp = (hi - lo) || 1;
+    var y = function (v) { return 56 - (v - lo) / sp * 52; };
+    var d = "", prev = null;
+    arr.forEach(function (p, i) { d += (prev != null && p[0] - prev <= 30 ? "L" : "M") + p[0] + " " + y(ys[i]).toFixed(1); prev = p[0]; });
+    var last = ys[ys.length - 1];
+    return '<line x1="0" x2="1440" y1="' + y(0).toFixed(1) + '" y2="' + y(0).toFixed(1) + '" class="tl-zero"/><path d="' + d + '" class="tl-line ' + (last > 0 ? "up" : last < 0 ? "down" : "flat") + '"/>';
+  }
+  function listHTML() {
+    var rows = st.ev.filter(function (x) { return x.e.imp === "H"; }).map(function (x) { return { m: x.m, k: "e", x: x }; })
+      .concat(st.ms.map(function (x, i) { return { m: x.m, k: "s", x: x, i: i }; })).sort(function (a, b) { return a.m - b.m; });
+    if (!rows.length) return '<div class="empty">이 시간대 주요 지표 발표·Must See 글이 없어요.</div>';
+    return '<div class="tl-list">' + rows.map(function (r) {
+      if (r.k === "e") {
+        var e = r.x.e;
+        return '<div class="tl-it" data-m="' + r.m + '"><span class="num">' + hm(r.m) + '</span><span class="tag m">지표</span><div class="t">' + esc((({ US: "미국", KR: "한국", CN: "중국", JP: "일본", EU: "유럽", UK: "영국", DE: "독일" })[e.country] || "") + " " + e.title) +
+          '<div class="s">' + esc([e.actual ? "실제 " + e.actual : "", e.forecast ? "예상 " + e.forecast : "", e.previous ? "이전 " + e.previous : ""].filter(Boolean).join(" · ") || "결과 대기") + '</div></div></div>';
+      }
+      var it = r.x.it, s = text(it.html) || (it.web && (it.web.title || it.web.desc)) || "(사진·첨부)";
+      return '<div class="tl-it" id="tl-ms-' + r.i + '" data-m="' + r.m + '"><span class="num">' + hm(r.m) + '</span><span class="tag i">Must See</span><div class="t"><b>' + esc(it.src.name) + '</b><div class="s">' + esc(s.slice(0, 180)) + (s.length > 180 ? "…" : "") +
+        (it.orig_link || it.link ? ' <a href="' + esc(it.orig_link || it.link) + '" target="_blank" rel="noopener">원문 ↗</a>' : "") + '</div></div><button class="fbtn" data-tlref="' + r.i + '">노트에 붙이기</button></div>';
+    }).join("") + '</div>';
+  }
+  function wire() {
+    var body = $("tl-body");
+    body.querySelectorAll("[data-tl]").forEach(function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute("data-tl"), i = sel.indexOf(k);
+        if (i >= 0) { if (sel.length > 1) sel.splice(i, 1); } else { if (sel.length >= 6) sel.shift(); sel.push(k); }
+        sel.sort(function (a, c) { return ORDER.indexOf(a) - ORDER.indexOf(c); });
+        try { localStorage.setItem("tlSel", JSON.stringify(sel)); } catch (e) {}
+        draw();
+      };
+    });
+    body.querySelectorAll("[data-tlref]").forEach(function (b) {
+      b.onclick = function () { var x = st.ms[+b.getAttribute("data-tlref")]; if (x && window.Study) { Study.attach(x.it, x.day); b.textContent = "붙임 ✓"; b.disabled = true; } };
+    });
+    var area = $("tl-charts"); if (!area) return;
+    var strip = body.querySelector(".tl-strip");
+    function at(ev) { var r = area.getBoundingClientRect(); return Math.max(0, Math.min(1439, Math.round((ev.clientX - r.left) / r.width * 1440 / 5) * 5)); }
+    function move(m) {
+      body.querySelectorAll(".tl-cur").forEach(function (l) { l.setAttribute("x1", m); l.setAttribute("x2", m); });
+      var D = st.data, parts = [];
+      sel.forEach(function (k) {
+        var arr = D.s[k]; if (!arr) return;
+        var kind = (D.names[k] || [k, "px"])[1], v = lastAt(arr, m), el = body.querySelector('[data-v="' + k + '"]');
+        if (el) el.innerHTML = chgText(k, kind, arr[0][1], v) + ' <small>' + hm(m) + '</small>';
+      });
+      var near = st.ev.concat(st.ms).filter(function (x) { return Math.abs(x.m - m) <= 10; });
+      $("tl-read").innerHTML = '<b>' + hm(m) + '</b>' + (near.length ? " · " + near.map(function (x) { return esc(x.e ? x.e.title : x.it.src.name); }).join(", ") : "");
+    }
+    function pick(ev) {
+      var m = at(ev); move(m);
+      var best = null; st.ms.forEach(function (x, i) { if (Math.abs(x.m - m) <= 10 && (!best || Math.abs(x.m - m) < Math.abs(best.x.m - m))) best = { x: x, i: i }; });
+      body.querySelectorAll(".tl-it.hl").forEach(function (e) { e.classList.remove("hl"); });
+      if (best) { var el = $("tl-ms-" + best.i); if (el) { el.classList.add("hl"); } }
+    }
+    area.addEventListener("pointermove", function (ev) { if (ev.pointerType === "mouse") move(at(ev)); });
+    area.addEventListener("pointerdown", pick);
+    if (strip) strip.addEventListener("pointerdown", function (ev) {
+      pick(ev);
+      var el = body.querySelector(".tl-it.hl"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }
+  return { init: init, show: show };
 })();
 </script>
 <script>
@@ -1873,6 +2142,7 @@ var Loop = (function () {
     if (name !== "review") Loop.flushWeek();
     if (name === "review" && BUNDLE) Loop.renderReview(BUNDLE);
     document.getElementById("study").hidden = name !== "index";
+    document.getElementById("tl").hidden = name !== "index";
   }
 
   if (window.MARKET_DATA) {
@@ -1898,6 +2168,7 @@ var Loop = (function () {
         initCalendar();
         if (b.data) render(b.data);
         else fail("지수 데이터가 아직 연결되지 않았어요. 캘린더·노트는 쓸 수 있어요. (telegram-keyword-monitor 저장소에 RA_READ_TOKEN 시크릿 등록 필요)");
+        Grade.init(b); Timeline.init(b);
         Study.init(b);
         Loop.hooks.changed.push(function () {
           if (cal.data) renderCal();
@@ -1906,7 +2177,7 @@ var Loop = (function () {
         });
         Loop.hooks.goDay = function (d) { setTab("index"); Study.go(d); window.scrollTo(0, 0); };
         if (!document.getElementById("rev").hidden) Loop.renderReview(BUNDLE);
-        if (document.getElementById("app").hidden) document.getElementById("study").hidden = true;
+        if (document.getElementById("app").hidden) document.getElementById("study").hidden = document.getElementById("tl").hidden = true;
       });
     }).catch(function (e) { fail("마켓 화면을 열지 못했어요: " + (e && e.message || e)); });
   }
