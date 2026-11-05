@@ -62,6 +62,11 @@ header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92
 .icon-btn{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
 .icon-btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .mk-btn{text-decoration:none;color:var(--ink);font-weight:600}
+.runbtn{font-size:15px;line-height:1;padding:5px 10px;font-variant-numeric:tabular-nums}
+.runbtn.busy{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:12.5px}
+.runbtn.busy::before{content:"";display:inline-block;width:9px;height:9px;margin-right:5px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:rbspin .8s linear infinite;vertical-align:-1px}
+@keyframes rbspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.runbtn.busy::before{animation:none}}
 @media (max-width:440px){.top{gap:6px}.top .icon-btn{padding:5px 9px;font-size:12.5px}}
 .search{padding:0 var(--gutter-r) 8px var(--gutter-l);max-width:860px;margin:0 auto}
 .search input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;font-size:16px}
@@ -179,6 +184,7 @@ mark{background:var(--mark);color:inherit;border-radius:2px}
     <div class="top">
       <h1 class="brand">Must See<small id="updated"></small></h1>
       <span class="sp"></span>
+      <button class="icon-btn runbtn" id="runBtn" type="button" aria-label="텔레그램에서 지금 가져오기" title="텔레그램에서 지금 가져오기">↻</button>
       <a class="icon-btn mk-btn" id="marketBtn" href="market.html">마켓</a>
       <button class="icon-btn" id="searchBtn" type="button" aria-expanded="false">검색</button>
       <button class="icon-btn" id="pdfBtn" type="button">PDF</button>
@@ -259,7 +265,7 @@ async function useRaw(raw){
 }
 
 // 새 화면이 올라갔는데 기기가 예전 화면을 저장해두고 있으면, 주소를 살짝 바꿔 새로 불러온다
-const VIEWER_VERSION = "44c425923e4e";
+const VIEWER_VERSION = "20c586395aa9";
 function needsUpdate(latest){
   if (!latest || latest === VIEWER_VERSION) return false;
   const tried = new URLSearchParams(location.search).get("v");
@@ -395,9 +401,68 @@ async function flush(){
   })();
   try { await flushing; } finally { flushing = null; }
 }
+/* ↻ 지금 가져오기: 텔레그램 수집 작업(GitHub Actions)을 바로 실행하고, 끝나면 새로 불러옴 */
+const RUNK = "mustsee.run.v1";
+let runTimer = null;
+function runApi(path, opt = {}){
+  return fetch("https://api.github.com/repos/" + sync.run_repo + path, Object.assign({ cache: "no-store" }, opt, {
+    headers: Object.assign({ Authorization: "Bearer " + sync.run, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }, opt.headers || {}) }));
+}
+function runLabel(t0, txt){
+  const b = $("runBtn"); if (!b) return;
+  if (!t0){ b.classList.remove("busy"); b.textContent = "↻"; b.disabled = false; return; }
+  const s = Math.max(0, Math.round((Date.now() - t0) / 1000));
+  b.classList.add("busy"); b.disabled = true; b.textContent = (txt || "가져오는 중") + " " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+function runSave(o){ try { o ? sessionStorage.setItem(RUNK, JSON.stringify(o)) : sessionStorage.removeItem(RUNK); } catch {} }
+async function runTrack(st){
+  // st = { t0, id? } — id 가 없으면 방금 실행한 작업을 찾는다
+  runSave(st); clearInterval(runTimer);
+  runTimer = setInterval(() => runLabel(st.t0, st.done ? "반영 중" : null), 1000); runLabel(st.t0);
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  try {
+    for (let i = 0; i < 150; i++){
+      if (!st.id){
+        const r = await runApi("/actions/workflows/" + sync.run_wf + "/runs?per_page=5");
+        if (r.ok){ const j = await r.json(); const hit = (j.workflow_runs || []).find(x => Date.parse(x.created_at) >= st.t0 - 60000 || x.status !== "completed"); if (hit){ st.id = hit.id; runSave(st); } }
+      } else {
+        const r = await runApi("/actions/runs/" + st.id);
+        if (r.ok){
+          const j = await r.json();
+          if (j.status === "completed"){
+            if (j.conclusion !== "success"){ clearInterval(runTimer); runSave(null); runLabel(0); toast("가져오기가 실패했어요 · 텔레그램 알림을 확인해 주세요"); return; }
+            st.done = true; runSave(st);
+            await wait(45000);                         // 페이지 배포가 끝날 때까지
+            clearInterval(runTimer); runSave(null); location.reload(); return;
+          }
+        }
+      }
+      await wait(6000);
+    }
+  } catch {}
+  clearInterval(runTimer); runSave(null); runLabel(0); toast("진행 상황을 확인하지 못했어요 · 잠시 뒤 새로고침해 주세요");
+}
+async function runNow(){
+  if (!sync || !sync.run){ toast("‘지금 가져오기’ 열쇠가 아직 등록되지 않았어요"); return; }
+  const t0 = Date.now(); runLabel(t0, "시작");
+  try {
+    // 이미 돌고 있는 작업이 있으면 그걸 따라간다
+    const cur = await runApi("/actions/workflows/" + sync.run_wf + "/runs?per_page=3");
+    if (cur.status === 401 || cur.status === 403 || cur.status === 404){ runLabel(0); toast("‘지금 가져오기’ 열쇠 권한을 확인해 주세요 (" + cur.status + ")"); return; }
+    const busy = cur.ok ? ((await cur.json()).workflow_runs || []).find(x => x.status !== "completed") : null;
+    if (busy){ toast("이미 가져오는 중이에요 · 끝나면 새로 불러올게요"); return runTrack({ t0: Date.parse(busy.created_at) || t0, id: busy.id }); }
+    const r = await runApi("/actions/workflows/" + sync.run_wf + "/dispatches", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: "main" }) });
+    if (!r.ok){ runLabel(0); toast("실행하지 못했어요 (" + r.status + ")"); return; }
+    toast("텔레그램에서 가져오는 중 · 보통 2~3분");
+    runTrack({ t0 });
+  } catch { runLabel(0); toast("GitHub에 접속하지 못했어요"); }
+}
 async function initStars(){
   loadLocalStars();
   try { sync = await openJSON("data/sync.bin"); } catch { sync = null; }
+  $("runBtn").onclick = runNow;
+  if (!sync || !sync.run) $("runBtn").title = "텔레그램에서 지금 가져오기 (열쇠 등록 필요)";
+  try { const p = JSON.parse(sessionStorage.getItem(RUNK) || "null"); if (p && sync && sync.run && Date.now() - p.t0 < 15 * 60000) runTrack(p); } catch {}
   if (sync) await flush();
 }
 function toggleStar(it){
