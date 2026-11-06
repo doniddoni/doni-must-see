@@ -88,6 +88,17 @@ def candidates(code):
 
 
 # ---------------------------------------------------------------- 계산
+def exch_tz(sym):
+    """거래소 시간대 — 야후가 여러 거래소 종목을 한 번에 주면 시각을 UTC 등 한 시간대로 섞어 주므로 다시 맞춤"""
+    if sym.endswith((".KS", ".KQ")) or sym in ("^KS11", "^KQ11"):
+        return "Asia/Seoul"
+    if sym.endswith(".T") or sym == "^N225":
+        return "Asia/Tokyo"
+    if sym.endswith(".HK") or sym == "^HSI":
+        return "Asia/Hong_Kong"
+    return "America/New_York"     # 미국 종목·선물·지수·금리·달러 등
+
+
 def _session_date(ts, sym):
     """거래일. 선물은 미 동부 18시에 다음 거래일이 시작되므로 6시간 당겨 셈."""
     return (ts + timedelta(hours=6)).date() if sym.endswith("=F") else ts.date()
@@ -261,6 +272,7 @@ def fetch(symbols, daily_cache, t0, df=None):
         if ser is None or not len(ser) or s not in daily_cache["d"]:
             continue
         idx = ser.index if ser.index.tz is not None else ser.index.tz_localize("UTC")
+        idx = idx.tz_convert(exch_tz(s))          # 프리·정규·애프터 판단은 거래소 시각으로
         pts = list(zip(idx.to_pydatetime(), [float(v) for v in ser.values]))
         m = move(s, daily_cache["d"][s], pts)
         if m:

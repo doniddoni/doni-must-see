@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
 import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.7"
+VERSION = "2026-11-06.8"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
