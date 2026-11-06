@@ -5,6 +5,7 @@ Doni Live — 오라클 서버에서 계속 도는 실시간 시장 수집기.
 - 경제지표 일정·예상·실제치(야후 + 이번 주 Forex Factory): 30분마다, 발표 시각 전후에는 1분마다
 - 실제치가 나오면 텔레그램 알림
 - 급변 알림: Must See 마켓 '알림 설정'(지수·종목·기준값·알림 봇)을 5분마다 읽어 크게 움직이면 알림 (watch.py)
+- 텔레그램 실시간 (tg.py, 이 프로그램이 띄우고 죽으면 다시 띄움): 키워드 즉시 알림 + Must See 새 글 → 수집 작업 실행
 - 결과는 Must See 비밀번호로 암호화해 doni-must-see 저장소 live 브랜치에 올림 (기록이 쌓이지 않게 매번 새로 덮어씀)
 - 상태(시각·건수·오류만, 내용 없음)는 같은 브랜치 status.json
 
@@ -33,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
 import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.3"
+VERSION = "2026-11-06.4"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
@@ -195,6 +196,15 @@ def push(env, box, live, status):
         raise RuntimeError("push 실패: " + r.stderr.replace(env["GH_TOKEN"], "***")[-300:])
 
 
+def tg_status():
+    """tg.py 상태 (건수·시각만)"""
+    try:
+        x = json.loads((HOME / "tg_status.json").read_text())
+        return {k: x.get(k) for k in ("state", "at", "kw_sent", "kw_chats", "ms_events", "ms_runs", "ms_last", "ms_code", "err")}
+    except Exception:
+        return {"state": "없음"}
+
+
 # ---------------------------------------------------------------- 본체
 def main():
     env = read_env()
@@ -209,11 +219,18 @@ def main():
     tg(env, "[Doni Live] 실시간 수집을 시작했어요 (" + VERSION + ")") if not st else None
 
     intra, events, ff = {}, [], {"ev": [], "at": 0}
-    t_intra = t_econ = t_push = t_gc = t_conf = t_watch = 0.0
+    t_intra = t_econ = t_push = t_gc = t_conf = t_watch = t_tg = 0.0
+    tgp = None
     last_err, errs = "", 0
     while True:
         t0 = time.time()
         changed = False
+        # 텔레그램 실시간 프로그램 지키기
+        if (tgp is None or tgp.poll() is not None) and t0 - t_tg > 60 and not os.environ.get("DONI_NO_TG"):
+            if tgp is not None:
+                log("tg.py 종료됨 → 다시 시작", tgp.returncode)
+            tgp = subprocess.Popen([sys.executable, "-u", str(Path(__file__).resolve().parent / "tg.py")])
+            t_tg = t0
         try:
             # Forex Factory 이번 주 (3시간마다)
             if t0 - ff["at"] > 3 * 3600:
@@ -278,11 +295,12 @@ def main():
                 t_intra = t0
                 changed = True
             if changed and t0 - t_push > 50:
-                live = {"v": 1, "at": now().strftime("%Y-%m-%d %H:%M"), "intra": intra, "macro": events, "alerts": alerts, "watch": winfo}
+                live = {"v": 1, "at": now().strftime("%Y-%m-%d %H:%M"), "intra": intra, "macro": events, "alerts": alerts, "watch": winfo,
+                        "tg": tg_status()}
                 status = {"at": live["at"], "version": VERSION, "intra": {k: len(v) for k, v in intra.get("s", {}).items()},
                           "intra_date": intra.get("date"), "events": len(events), "hot": hot,
                           "actuals": sum(1 for e in events if e.get("actual")), "error": last_err,
-                          "alert_conf": winfo.get("conf"), "watching": winfo.get("n", 0)}
+                          "alert_conf": winfo.get("conf"), "watching": winfo.get("n", 0), "tg": tg_status()}
                 push(env, box, live, status)
                 t_push = t0
                 STATE.write_text(json.dumps({"announced": sorted(announced)[-500:], "alerts": alerts, "watch": wst}, ensure_ascii=False))
