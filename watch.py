@@ -14,6 +14,7 @@ import json
 import math
 import os
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -42,13 +43,18 @@ def now():
 
 
 # ---------------------------------------------------------------- 설정
+def _get(url, gh_token, accept):
+    req = urllib.request.Request(url, headers={"Accept": accept, "X-GitHub-Api-Version": "2022-11-28",
+                                               **({"Authorization": "Bearer " + gh_token} if gh_token else {})})
+    return urllib.request.urlopen(req, timeout=30).read()
+
+
 def load_conf(box, gh_token):
-    """→ (설정 dict 또는 None, 상태 문자열)"""
-    req = urllib.request.Request(CONF_URL + ("&" if "?" in CONF_URL else "?") + "_=" + str(int(time.time())),
-                                 headers={"Accept": "application/vnd.github.raw", "X-GitHub-Api-Version": "2022-11-28",
-                                          **({"Authorization": "Bearer " + gh_token} if gh_token else {})})
+    """→ (설정 dict 또는 None, 상태 문자열)
+    contents API 는 암호화된 바이트를 글자로 오인해 UTF-8로 바꿔 보낼 때가 있음 → sha 만 받고 원본은 git blob 으로"""
     try:
-        raw = urllib.request.urlopen(req, timeout=30).read()
+        meta = json.loads(_get(CONF_URL + ("&" if "?" in CONF_URL else "?") + "_=" + str(int(time.time())), gh_token, "application/vnd.github+json"))
+        raw = _get(CONF_URL.split("/contents/")[0] + "/git/blobs/" + meta["sha"], gh_token, "application/vnd.github.raw")
     except urllib.error.HTTPError as e:
         return None, "없음" if e.code == 404 else f"읽기 실패 {e.code}"
     except Exception as e:
