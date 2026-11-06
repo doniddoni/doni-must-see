@@ -396,6 +396,19 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 #rev .panel .snav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 #rev .sdate { font: 700 17px/1.3 var(--f-display); min-width: 9em; text-align: center; }
 /* 내 종목 프리·애프터 */
+.idxsub { display: flex; gap: 6px; padding-top: 12px; }
+.idxsub[hidden] { display: none; }
+.idxsub .fbtn { font-size: 14px; padding: 7px 16px; }
+.qt-tools { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 6px; }
+.qt-tools .seg button { padding: 5px 11px; font-size: 12.5px; }
+.qt-l { display: grid; grid-template-columns: minmax(0, 1fr) auto 92px; gap: 0 10px; align-items: center; padding: 8px 2px; border-top: 1px solid var(--line); cursor: pointer; font-size: 14px; }
+.qt-l .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.qt-l .nm small { font-weight: 400; color: var(--muted); font-size: 11.5px; margin-left: 5px; }
+.qt-l .pr { text-align: right; color: var(--muted); font-size: 13px; }
+.qt-l .ch { text-align: right; font-weight: 700; }
+.qt-l .ch i { font-style: normal; font-weight: 500; font-size: 10.5px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 5px; margin-right: 4px; vertical-align: 1px; }
+.qt-l .dt { grid-column: 1 / -1; display: none; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); padding-top: 4px; }
+.qt-l.open .dt { display: flex; }
 .qt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--line); align-items: baseline; }
 .qt-row:first-child { border-top: 0; }
 .qt-n { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -447,7 +460,12 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
   </div>
 </header>
 
-<div class="gutter pagehead"><h2 id="headline">미국·한국 지수</h2><p id="subline">내 종목 · 장중 타임라인 · 최근 90거래일 일봉(20/50일 이동평균)</p></div>
+<div class="gutter pagehead"><h2 id="headline">미국·한국 지수</h2><p id="subline">타임라인 · 지표 · 내 종목</p></div>
+<div class="gutter idxsub" id="idxsub" role="tablist" aria-label="지수 화면">
+  <button class="fbtn" data-isub="tl" aria-pressed="true">타임라인</button>
+  <button class="fbtn" data-isub="idx" aria-pressed="false">지표</button>
+  <button class="fbtn" data-isub="qt" aria-pressed="false">내 종목</button>
+</div>
 
 <section class="gutter study-wrap" id="study" aria-label="시장 노트" hidden></section>
 <section class="gutter study-wrap" id="tl" aria-label="타임라인"></section>
@@ -514,7 +532,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "beebd77be7bb";
+      var ver = "fe0ebe2f6c24";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -1576,47 +1594,48 @@ var Live = (function () {
   }
   return { start: start, get: function () { return data; } };
 })();
-/* 내 종목 시세: 오라클 서버가 1분마다 (미국 종목은 프리·애프터 포함). 기본은 많이 움직인 3개만, 펼치면 미국·한국 나눠 보기 */
+/* 내 종목 시세: 오라클 서버가 1분마다 (미국 종목은 프리·애프터 포함). 지수 탭 > 내 종목 하위 탭, 한 줄씩 촘촘히 */
 var Quotes = (function () {
   var SESS = { pre: "프리장", reg: "정규장", post: "애프터" };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function pc(x) { if (x == null) return "-"; return '<b class="' + (x > 0 ? "qt-up" : x < 0 ? "qt-dn" : "") + '">' + (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(2) + "%</b>"; }
   function px(v) { return v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  var qv = { open: false, tab: "all" }, lastL = null;
-  try { var sv = JSON.parse(localStorage.getItem("qtView") || "null"); if (sv) qv = Object.assign(qv, sv); } catch (e) {}
+  var qv = { tab: "all", sort: "move" }, lastL = null, opened = {};
+  try { var sv = JSON.parse(localStorage.getItem("qtView") || "null"); if (sv) { qv.tab = sv.tab || "all"; qv.sort = sv.sort || "move"; } } catch (e) {}
   function mv(x) { return x.sess === "pre" || x.sess === "post" ? (x.ext == null ? x.reg : x.ext) : x.reg; }   // 지금 움직임
-  function row(x) {
-    var s = x.sess, line;
-    if (s === "pre") line = '<span class="qt-tag pre">' + SESS.pre + '</span><span>프리 ' + pc(x.ext) + '</span><span>지난 정규장 ' + pc(x.reg) + '</span>';
-    else if (s === "post") line = '<span class="qt-tag post">' + SESS.post + '</span><span>애프터 ' + pc(x.ext) + '</span><span>정규장 ' + pc(x.reg) + '</span>';
-    else line = '<span class="qt-tag">' + (x.stale ? "마감" : SESS.reg) + '</span><span>' + pc(x.reg) + '</span>';
-    return '<div class="qt-row"><div class="qt-n">' + esc(x.n) + (x.n !== x.s ? '<small>' + esc(x.s) + '</small>' : "") + '</div><div class="qt-p num">' + px(x.last) + '</div>' +
-      '<div class="qt-s">' + line + '<span>' + esc(x.t) + (x.stale ? " 기준" : "") + '</span></div></div>';
-  }
   function isKr(x) { return /\.(KS|KQ)$/.test(x.s) || /^\d{6}$/.test(x.s); }
+  function row(x) {
+    var s = x.sess, tag = s === "pre" ? "프리" : s === "post" ? "애프터" : "", m = mv(x), dt;
+    if (s === "pre") dt = '<span>프리 ' + pc(x.ext) + '</span><span>지난 정규장 ' + pc(x.reg) + '</span>';
+    else if (s === "post") dt = '<span>애프터 ' + pc(x.ext) + '</span><span>정규장 ' + pc(x.reg) + '</span>';
+    else dt = '<span>' + (x.stale ? "마감" : "정규장") + ' ' + pc(x.reg) + '</span>';
+    return '<div class="qt-l' + (opened[x.s] ? " open" : "") + '" data-qs="' + esc(x.s) + '"><div class="nm">' + esc(x.n || x.s) + (x.n && x.n !== x.s ? '<small>' + esc(x.s.replace(/\.(KS|KQ)$/, "")) + '</small>' : "") + '</div>' +
+      '<div class="pr num">' + px(x.last) + '</div><div class="ch num">' + (tag ? "<i>" + tag + "</i>" : "") + pc(m) + '</div>' +
+      '<div class="dt">' + dt + '<span>' + esc(x.t) + (x.stale ? " 기준" : "") + '</span></div></div>';
+  }
   function render(L) {
     lastL = L || lastL;
     var root = document.getElementById("qt"); if (!root) return;
     var q = (lastL && lastL.quotes) || [];
-    root.dataset.has = q.length ? "1" : "";
-    var onIndex = document.getElementById("tab-index").getAttribute("aria-selected") === "true";
-    root.hidden = !q.length || !onIndex;
-    if (!q.length) return;
+    if (!q.length) {
+      root.innerHTML = '<section class="panel"><div class="panel-h"><h2>내 종목</h2></div><div class="empty">아직 종목이 없어요. 알림 → ③ 내 종목에서 추가하거나 \'기업 리스트 ★ 기업 모두 넣기\'를 눌러 주세요.<br><button class="fbtn" id="qt-edit" style="margin-top:8px">종목 넣기</button></div></section>';
+      var e0 = document.getElementById("qt-edit"); if (e0) e0.onclick = function () { Alerts.open(); };
+      return;
+    }
     var us = q.filter(function (x) { return !isKr(x); }), kr = q.filter(isKr);
-    var byMove = function (a, b) { return Math.abs(mv(b) || 0) - Math.abs(mv(a) || 0); };
     var up = q.filter(function (x) { return (mv(x) || 0) > 0; }).length, dn = q.filter(function (x) { return (mv(x) || 0) < 0; }).length;
-    var list = (qv.tab === "us" ? us : qv.tab === "kr" ? kr : q).slice().sort(byMove);
-    var shown = qv.open ? list : list.slice(0, 3);
-    var h = '<section class="panel"><div class="panel-h"><h2>내 종목</h2><span>' + q.length + '개 · 상승 ' + up + ' · 하락 ' + dn + ' · 1분마다 · <button class="al-x" id="qt-edit">종목 바꾸기</button></span></div>';
-    if (qv.open) h += '<div class="tl-ctl"><span class="seg" role="group" aria-label="지역">' + [["all", "전체 " + q.length], ["us", "미국 " + us.length], ["kr", "한국 " + kr.length]].map(function (t) {
-      return '<button data-qtab="' + t[0] + '" aria-pressed="' + (qv.tab === t[0]) + '">' + t[1] + '</button>'; }).join("") + '</span></div>';
-    else h += '<div class="al-msg" style="margin-bottom:4px">지금 가장 많이 움직인 3개</div>';
-    h += shown.map(row).join("");
-    if (qv.open || q.length > 3) h += '<button class="fbtn nms-more" id="qt-tog">' + (qv.open ? "접기" : "전체 " + q.length + "개 보기 (미국·한국 나눠 보기)") + '</button>';
-    root.innerHTML = h + "</section>";
+    var list = (qv.tab === "us" ? us : qv.tab === "kr" ? kr : q).slice();
+    if (qv.sort === "move") list.sort(function (a, b) { return Math.abs(mv(b) || 0) - Math.abs(mv(a) || 0); });
+    else if (qv.sort === "up") list.sort(function (a, b) { return (mv(b) || -999) - (mv(a) || -999); });
+    else list.sort(function (a, b) { return String(a.n || a.s).localeCompare(String(b.n || b.s), "ko"); });
+    var seg = function (key, opts) { return '<span class="seg" role="group">' + opts.map(function (o) { return '<button data-q' + key + '="' + o[0] + '" aria-pressed="' + (qv[key] === o[0]) + '">' + o[1] + '</button>'; }).join("") + '</span>'; };
+    root.innerHTML = '<section class="panel"><div class="panel-h"><h2>내 종목</h2><span>' + q.length + '개 · 상승 ' + up + ' · 하락 ' + dn + ' · <button class="al-x" id="qt-edit">종목 바꾸기</button></span></div>' +
+      '<div class="qt-tools">' + seg("tab", [["all", "전체 " + q.length], ["us", "미국 " + us.length], ["kr", "한국 " + kr.length]]) + seg("sort", [["move", "많이 움직인 순"], ["up", "상승 순"], ["name", "이름 순"]]) + '</div>' +
+      '<div class="al-msg">줄을 누르면 정규장·시간외 등락과 시각이 나와요</div>' + list.map(row).join("") + "</section>";
     var e = document.getElementById("qt-edit"); if (e) e.onclick = function () { Alerts.open(); };
-    var t = document.getElementById("qt-tog"); if (t) t.onclick = function () { qv.open = !qv.open; save(); render(); };
     root.querySelectorAll("[data-qtab]").forEach(function (b) { b.onclick = function () { qv.tab = b.getAttribute("data-qtab"); save(); render(); }; });
+    root.querySelectorAll("[data-qsort]").forEach(function (b) { b.onclick = function () { qv.sort = b.getAttribute("data-qsort"); save(); render(); }; });
+    root.querySelectorAll(".qt-l").forEach(function (r) { r.onclick = function () { var k = r.getAttribute("data-qs"); opened[k] = !opened[k]; r.classList.toggle("open", !!opened[k]); }; });
   }
   function save() { try { localStorage.setItem("qtView", JSON.stringify(qv)); } catch (e) {} }
   return { render: render };
@@ -2645,18 +2664,33 @@ var Alerts = (function () {
   }
 
   var TABS = {
-    index: ["app", "tab-index", "미국·한국 지수", "내 종목 · 장중 타임라인 · 최근 90거래일 일봉(20/50일 이동평균)"],
+    index: ["app", "tab-index", "미국·한국 지수", "타임라인 · 지표 · 내 종목"],
     note: ["study", "tab-note", "시장 노트", "하루 한 줄 · 원인 · 확신도 · Must See 글을 근거로"],
     calendar: ["cal", "tab-calendar", "증시 주요 이벤트 캘린더", "주요국 경제지표·매크로 이벤트 · 한국·미국 실적 발표 일정"],
     review: ["rev", "tab-review", "주간 복기", "한 주의 노트 · 예상 적중 · 섹터를 한 번에"],
     companies: ["comp", "tab-companies", "미국·한국 기업 리스트", "산업별 분류 · 별을 누른 기업만 캘린더에서 따로 보기"]
   };
-  var curTab = "index";
+  var curTab = "index", SUBS = { tl: "장중 1분 · 1개월~1년 일봉 · 선·봉", idx: "최근 90거래일 일봉 · 20/50일 이동평균", qt: "미국 종목은 프리·애프터 포함 · 1분마다" };
+  var sub = "tl"; try { sub = localStorage.getItem("idxSub") || "tl"; } catch (e) {}
+  if (!SUBS[sub]) sub = "tl";
   function vis(name) {
+    var ix = name === "index";
     document.getElementById("study").hidden = name !== "note";
-    document.getElementById("tl").hidden = name !== "index";
-    var q = document.getElementById("qt"); q.hidden = name !== "index" || !q.dataset.has;
+    document.getElementById("idxsub").hidden = !ix;
+    document.getElementById("tl").hidden = !(ix && sub === "tl");
+    document.getElementById("app").hidden = !(ix && sub === "idx");
+    document.getElementById("qt").hidden = !(ix && sub === "qt");
+    document.querySelectorAll("[data-isub]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-isub") === sub)); });
+    if (ix) document.getElementById("subline").textContent = SUBS[sub];
+    if (ix && sub === "qt" && !document.getElementById("qt").innerHTML) { try { Quotes.render(); } catch (e) {} }
   }
+  document.querySelectorAll("[data-isub]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      sub = b.getAttribute("data-isub"); try { localStorage.setItem("idxSub", sub); } catch (e) {}
+      vis(curTab); if (sub === "idx") renderIndex(); window.scrollTo(0, 0);
+    });
+  });
+  vis("index");
   function setTab(name) {
     if (!TABS[name]) name = "index";
     curTab = name;
