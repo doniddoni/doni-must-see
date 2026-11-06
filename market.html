@@ -306,6 +306,11 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .nref, .nms { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
 .nref { background: var(--ir-soft); border-radius: 8px; padding: 8px 10px; border-top: 0; margin-top: 6px; }
 .nref .s, .nms .s { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; margin-top: 2px; }
+.nms .s { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nms.open .s { display: block; }
+.nms { cursor: pointer; }
+.nms .fbtn { font-size: 12px; padding: 3px 9px; }
+.nms-more { width: 100%; margin: 4px 0 2px; }
 .nref .s a { color: var(--ir); }
 .nhist { font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--line); padding: 7px 0; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13.5px; }
 .nhist .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -341,6 +346,10 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .tl-it .s { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .tl-it .s a { color: var(--accent); }
 .tl-it.hl { background: var(--accent-soft); }
+.tl-it.ms { cursor: pointer; }
+.tl-it .s.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tl-it.open .s.clamp { display: block; }
+.tl-it .att { font-size: 12px; padding: 3px 9px; white-space: nowrap; }
 .autog { font-weight: 400; margin-top: 2px; }
 .secchk .seg { flex: none; } .secchk .seg button, .sheet .seg button { white-space: nowrap; }
 .glist { display: grid; gap: 2px; margin-top: 6px; }
@@ -424,7 +433,8 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
       <button class="icon-btn" id="lockBtn" type="button">잠금</button>
     </div>
     <nav class="tabs" role="tablist" aria-label="화면 선택">
-      <button class="tab" role="tab" id="tab-index" aria-selected="true" aria-controls="app">지수·노트</button>
+      <button class="tab" role="tab" id="tab-index" aria-selected="true" aria-controls="app">지수</button>
+      <button class="tab" role="tab" id="tab-note" aria-selected="false" aria-controls="study">노트</button>
       <button class="tab" role="tab" id="tab-calendar" aria-selected="false" aria-controls="cal">증시 캘린더</button>
       <button class="tab" role="tab" id="tab-review" aria-selected="false" aria-controls="rev">주간 복기</button>
       <button class="tab" role="tab" id="tab-companies" aria-selected="false" aria-controls="comp">기업 리스트</button>
@@ -432,9 +442,9 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
   </div>
 </header>
 
-<div class="gutter pagehead"><h2 id="headline">미국·한국 지수 일봉</h2><p id="subline">최근 90거래일 · 일본식 캔들 · 20/50일 이동평균</p></div>
+<div class="gutter pagehead"><h2 id="headline">미국·한국 지수</h2><p id="subline">내 종목 · 장중 타임라인 · 최근 90거래일 일봉(20/50일 이동평균)</p></div>
 
-<section class="gutter study-wrap" id="study" aria-label="시장 노트"></section>
+<section class="gutter study-wrap" id="study" aria-label="시장 노트" hidden></section>
 <section class="gutter study-wrap" id="qt" aria-label="내 종목 시세" hidden></section>
 <section class="gutter study-wrap" id="tl" aria-label="장중 타임라인"></section>
 
@@ -499,7 +509,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "9a68405dacc1";
+      var ver = "1155ab3fe57a";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -830,15 +840,25 @@ var Study = (function () {
         var items = (g[1] && g[1].items) || [];
         h += '<div class="rgrp">' + mdw(g[0]) + ' ' + g[2] + ' · ' + items.length + '건</div>';
         if (!items.length) { h += '<div class="empty">이날 모은 글이 없어요.</div>'; return; }
-        items.slice().sort(function (a, b) { return (b.time || "").localeCompare(a.time || ""); }).forEach(function (it) {
-          var s = text(it.html) || (it.web && (it.web.title || it.web.desc)) || (it.photos && it.photos.length ? "(사진)" : "(첨부)");
+        var all = items.slice().sort(function (a, b) { return (b.time || "").localeCompare(a.time || ""); });
+        var lim = st.msAll && st.msAll[g[0]] ? all.length : 5;
+        all.slice(0, lim).forEach(function (it) {
+          var body = (text(it.html) || "").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
+          var s = [it.web && it.web.title ? "🔗 " + it.web.title : "", body].filter(Boolean).join(" — ") || (it.photos && it.photos.length ? "(사진)" : "(첨부)");
           var id = String(it.id);
           h += '<div class="nms"><div><div class="t"><b>' + esc(it.src.name) + '</b> <span class="num" style="color:var(--muted)">' + esc(it.time || "") + '</span></div>' +
-            '<div class="s">' + esc(s.slice(0, 160)) + (s.length > 160 ? "…" : "") + '</div></div>' +
-            (used[id] ? '<span class="nlab">붙임</span>' : '<button class="fbtn" data-ref="' + esc(g[0]) + '|' + esc(id) + '">붙이기</button>') + '</div>';
+            '<div class="s">' + esc(s.slice(0, 400)) + (s.length > 400 ? "…" : "") + '</div></div>' +
+            (used[id] ? '<span class="nlab">붙임</span>' : '<button class="fbtn" data-ref="' + esc(g[0]) + '|' + esc(id) + '">＋붙이기</button>') + '</div>';
         });
+        if (all.length > lim) h += '<button class="fbtn nms-more" data-msall="' + esc(g[0]) + '">' + (all.length - lim) + '건 더 보기</button>';
       });
       list.innerHTML = h;
+      list.querySelectorAll("[data-msall]").forEach(function (b) {
+        b.onclick = function () { st.msAll = st.msAll || {}; st.msAll[b.getAttribute("data-msall")] = true; loadMs(); };
+      });
+      list.querySelectorAll(".nms").forEach(function (row) {
+        row.addEventListener("click", function (e) { if (e.target.closest("a,button")) return; row.classList.toggle("open"); });
+      });
       list.querySelectorAll("[data-ref]").forEach(function (b) {
         b.onclick = function () {
           var v = b.getAttribute("data-ref").split("|"), day = v[0], id = v[1];
@@ -1342,9 +1362,11 @@ var Timeline = (function () {
         return '<div class="tl-it" data-m="' + r.m + '"><span class="num">' + hm(r.m) + '</span><span class="tag m">지표</span><div class="t">' + esc((({ US: "미국", KR: "한국", CN: "중국", JP: "일본", EU: "유럽", UK: "영국", DE: "독일" })[e.country] || "") + " " + e.title) +
           '<div class="s">' + esc([e.actual ? "실제 " + e.actual : "", e.forecast ? "예상 " + e.forecast : "", e.previous ? "이전 " + e.previous : ""].filter(Boolean).join(" · ") || "결과 대기") + '</div></div></div>';
       }
-      var it = r.x.it, s = text(it.html) || (it.web && (it.web.title || it.web.desc)) || "(사진·첨부)";
-      return '<div class="tl-it" id="tl-ms-' + r.i + '" data-m="' + r.m + '"><span class="num">' + hm(r.m) + '</span><span class="tag i">Must See</span><div class="t"><b>' + esc(it.src.name) + '</b><div class="s">' + esc(s.slice(0, 180)) + (s.length > 180 ? "…" : "") +
-        (it.orig_link || it.link ? ' <a href="' + esc(it.orig_link || it.link) + '" target="_blank" rel="noopener">원문 ↗</a>' : "") + '</div></div><button class="fbtn" data-tlref="' + r.i + '">노트에 붙이기</button></div>';
+      var it = r.x.it, body = (text(it.html) || "").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
+      var wt = it.web && it.web.title ? "🔗 " + it.web.title : "";
+      var s = [wt, body].filter(Boolean).join(" — ") || "(사진·첨부)";
+      return '<div class="tl-it ms" id="tl-ms-' + r.i + '" data-m="' + r.m + '"><span class="num">' + hm(r.m) + '</span><span class="tag i">Must See</span><div class="t"><b>' + esc(it.src.name) + '</b><div class="s clamp">' + esc(s.slice(0, 400)) + (s.length > 400 ? "…" : "") +
+        (it.orig_link || it.link ? ' <a href="' + esc(it.orig_link || it.link) + '" target="_blank" rel="noopener">원문 ↗</a>' : "") + '</div></div><button class="fbtn att" data-tlref="' + r.i + '" title="이날 시장 노트의 근거로 붙이기">＋노트</button></div>';
     }).join("") + '</div>';
   }
   function wire() {
@@ -1359,7 +1381,10 @@ var Timeline = (function () {
       };
     });
     body.querySelectorAll("[data-tlref]").forEach(function (b) {
-      b.onclick = function () { var x = st.ms[+b.getAttribute("data-tlref")]; if (x && window.Study) { Study.attach(x.it, x.day); b.textContent = "붙임 ✓"; b.disabled = true; } };
+      b.onclick = function (e) { e.stopPropagation(); var x = st.ms[+b.getAttribute("data-tlref")]; if (x && window.Study) { Study.attach(x.it, x.day); b.textContent = "붙임 ✓"; b.disabled = true; } };
+    });
+    body.querySelectorAll(".tl-it.ms").forEach(function (row) {
+      row.addEventListener("click", function (e) { if (e.target.closest("a,button")) return; row.classList.toggle("open"); });
     });
     var area = $("tl-charts"); if (!area) return;
     var strip = body.querySelector(".tl-strip");
@@ -1444,8 +1469,10 @@ var Quotes = (function () {
   function render(L) {
     var root = document.getElementById("qt"); if (!root) return;
     var q = (L && L.quotes) || [];
-    if (!q.length) { root.hidden = true; return; }
-    root.hidden = false;
+    root.dataset.has = q.length ? "1" : "";
+    var onIndex = document.getElementById("tab-index").getAttribute("aria-selected") === "true";
+    root.hidden = !q.length || !onIndex;
+    if (!q.length) return;
     root.innerHTML = '<section class="panel"><div class="panel-h"><h2>내 종목</h2><span>미국 종목은 프리·애프터 포함 · 5분마다 · <button class="al-x" id="qt-edit">종목 바꾸기</button></span></div>' +
       q.map(function (x) {
         var s = x.sess, line;
@@ -2459,13 +2486,22 @@ var Alerts = (function () {
   }
 
   var TABS = {
-    index: ["app", "tab-index", "미국·한국 지수 일봉", "최근 90거래일 · 일본식 캔들 · 20/50일 이동평균"],
+    index: ["app", "tab-index", "미국·한국 지수", "내 종목 · 장중 타임라인 · 최근 90거래일 일봉(20/50일 이동평균)"],
+    note: ["study", "tab-note", "시장 노트", "하루 한 줄 · 원인 · 확신도 · Must See 글을 근거로"],
     calendar: ["cal", "tab-calendar", "증시 주요 이벤트 캘린더", "주요국 경제지표·매크로 이벤트 · 한국·미국 실적 발표 일정"],
     review: ["rev", "tab-review", "주간 복기", "한 주의 노트 · 예상 적중 · 섹터를 한 번에"],
     companies: ["comp", "tab-companies", "미국·한국 기업 리스트", "산업별 분류 · 별을 누른 기업만 캘린더에서 따로 보기"]
   };
+  var curTab = "index";
+  function vis(name) {
+    document.getElementById("study").hidden = name !== "note";
+    document.getElementById("tl").hidden = name !== "index";
+    var q = document.getElementById("qt"); q.hidden = name !== "index" || !q.dataset.has;
+  }
   function setTab(name) {
     if (!TABS[name]) name = "index";
+    curTab = name;
+    try { history.replaceState(null, "", name === "index" ? location.pathname + location.search : "#" + name); } catch (e) {}
     Object.keys(TABS).forEach(function (k) {
       document.getElementById(TABS[k][0]).hidden = k !== name;
       document.getElementById(TABS[k][1]).setAttribute("aria-selected", String(k === name));
@@ -2476,14 +2512,15 @@ var Alerts = (function () {
     if (name === "index") { renderIndex(); }
     if (name !== "review") Loop.flushWeek();
     if (name === "review" && BUNDLE) Loop.renderReview(BUNDLE);
-    document.getElementById("study").hidden = name !== "index";
-    document.getElementById("tl").hidden = name !== "index";
+    vis(name);
   }
 
   if (window.MARKET_DATA) {
     render(window.MARKET_DATA);
   } else {
     document.getElementById("tab-index").addEventListener("click", function () { setTab("index"); });
+    document.getElementById("tab-note").addEventListener("click", function () { setTab("note"); });
+    if (location.hash === "#note") setTab("note");
     document.getElementById("tab-calendar").addEventListener("click", function () { setTab("calendar"); });
     document.getElementById("tab-companies").addEventListener("click", function () { setTab("companies"); });
     document.getElementById("tab-review").addEventListener("click", function () { setTab("review"); });
@@ -2511,9 +2548,9 @@ var Alerts = (function () {
           Study.refresh();
           if (!document.getElementById("rev").hidden) Loop.renderReview(BUNDLE);
         });
-        Loop.hooks.goDay = function (d) { setTab("index"); Study.go(d); window.scrollTo(0, 0); };
+        Loop.hooks.goDay = function (d) { setTab("note"); Study.go(d); window.scrollTo(0, 0); };
         if (!document.getElementById("rev").hidden) Loop.renderReview(BUNDLE);
-        if (document.getElementById("app").hidden) document.getElementById("study").hidden = document.getElementById("tl").hidden = true;
+        vis(curTab);
       });
     }).catch(function (e) { fail("마켓 화면을 열지 못했어요: " + (e && e.message || e)); });
   }
