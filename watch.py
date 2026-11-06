@@ -4,7 +4,7 @@
 설정: doni-must-see 저장소 stars 브랜치 alert_conf.bin (Must See 비밀번호로 암호화, 화면에서 저장)
   {v, updated, on, macro, tg: {token, chat, bot}, base: {키: true/false}, rules: {묶음: [하루, 30분]},
    watch: [{c: "005930" | "NVDA" | "7203.T", n: "이름(선택)"}]}
-판단 (5분마다)
+판단 (1분마다)
   - 하루: 전일 종가 대비. 기준을 넘으면 1번, 기준의 2배·3배를 넘을 때마다 1번 더 (같은 날·같은 방향)
   - 30분: 최근 30분 사이 변동. 같은 방향은 45분에 1번만
   - 시세가 45분 넘게 멈춰 있으면(장 마감·휴장) 판단하지 않음
@@ -27,7 +27,8 @@ BASE = [
     ("SPX", "^GSPC", "S&P 500", "idx"), ("IXIC", "^IXIC", "나스닥", "idx"),
     ("KOSPI", "^KS11", "코스피", "idx"), ("KOSDAQ", "^KQ11", "코스닥", "idx"),
     ("N225", "^N225", "니케이", "idx"), ("HSI", "^HSI", "항셍", "idx"),
-    ("US10Y", "^TNX", "미 10년", "rate"), ("USDKRW", "KRW=X", "원/달러", "fx"),
+    ("US2Y", "2YY=F", "미 2년", "rate"), ("US10Y", "^TNX", "미 10년", "rate"), ("US30Y", "^TYX", "미 30년", "rate"),
+    ("USDKRW", "KRW=X", "원/달러", "fx"),
     ("DXY", "DX-Y.NYB", "달러인덱스", "fx"), ("WTI", "CL=F", "WTI", "cmd"),
     ("GOLD", "GC=F", "금", "cmd"), ("VIX", "^VIX", "VIX", "vix"),
 ]
@@ -237,7 +238,7 @@ def _col(df, sym):
         return None
 
 
-def fetch(symbols, daily_cache, t0):
+def fetch(symbols, daily_cache, t0, df=None):
     """→ ({기호: move}, 일봉 캐시, {기호: quote}). 일봉은 30분마다, 2분봉은 매번."""
     import yfinance as yf
     syms = sorted(set(symbols))
@@ -252,7 +253,8 @@ def fetch(symbols, daily_cache, t0):
             if ser is not None and len(ser):
                 d[s] = [(ix.date() if hasattr(ix, "date") else ix, float(v)) for ix, v in ser.items()]
         daily_cache = {"at": t0, "d": d}
-    df = yf.download(syms, period="2d", interval="2m", prepost=True, group_by="ticker", auto_adjust=False, progress=False, threads=True)
+    if df is None:
+        df = yf.download(syms, period="2d", interval="1m", prepost=True, group_by="ticker", auto_adjust=False, progress=False, threads=True)
     out, quotes = {}, {}
     for s in syms:
         ser = _col(df, s)

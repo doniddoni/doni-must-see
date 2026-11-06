@@ -1,7 +1,7 @@
 """
 Doni Live — 오라클 서버에서 계속 도는 실시간 시장 수집기.
 
-- 2분봉 시세(선물·지수·금리·환율·원자재, 프리·애프터 포함): 5분마다
+- 1분봉 시세(선물·지수·금리·환율·원자재, 프리·애프터 포함): 1분마다 (내 종목·급변 판단도 같은 데이터로)
 - 경제지표 일정·예상·실제치(야후 + 이번 주 Forex Factory): 30분마다, 발표 시각 전후에는 1분마다
 - 실제치가 나오면 텔레그램 알림
 - 급변 알림: Must See 마켓 '알림 설정'(지수·종목·기준값·알림 봇)을 5분마다 읽어 크게 움직이면 알림 (watch.py)
@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
 import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.6"
+VERSION = "2026-11-06.7"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
@@ -104,10 +104,14 @@ def window_date(t=None):
     return ((t or now()) - timedelta(hours=8)).strftime("%Y-%m-%d")
 
 
-def intraday():
+def download_1m(symbols):
+    """1분봉(프리·애프터 포함) 한 번에 — 타임라인·내 종목·급변 판단이 같이 씀"""
     import yfinance as yf
-    df = yf.download([t[0] for t in BL.INTRA], period="2d", interval="2m", prepost=True,
-                     group_by="ticker", auto_adjust=False, progress=False, threads=True)
+    return yf.download(sorted(set(symbols)), period="2d", interval="1m", prepost=True,
+                       group_by="ticker", auto_adjust=False, progress=False, threads=True)
+
+
+def intraday(df):
     wd, s = window_date(), {}
     for sym, key, name, kind in BL.INTRA:
         try:
@@ -277,24 +281,25 @@ def main():
                 except Exception as e:
                     log("종목 코드 확인 실패", e)
                 changed = True
-            # 급변 판단 5분마다 (설정에서 끄면 쉼)
-            if t0 - t_watch > 290 and (CONF["c"] or {}).get("on", True):
+            # 시세·내 종목·급변 판단: 1분마다 (야후 1분봉 한 번에 받아서 같이 씀)
+            if t0 - t_intra > 55:
+                watch_on = (CONF["c"] or {}).get("on", True)
                 tl = W.targets(CONF["c"], wst["resolved"])
                 ctx = [b[1] for b in W.BASE if b[0] in W.CONTEXT]
-                data, daily, qts = W.fetch([x[1] for x in tl] + ctx, daily, t0)
-                quotes = [{"n": n, "s": sym, **qts[sym]} for k, sym, n, g in tl if k.startswith("W:") and sym in qts]
-                t_watch = t0
-                winfo["n"], winfo["live"] = len(tl), sum(1 for x in tl if x[1] in data)
-                for m in W.check(CONF["c"], tl, data, wst):
-                    sent = tg(env, m["text"])
-                    alerts = (alerts + [{"at": now().strftime("%m-%d %H:%M"), "k": m["k"], "type": "move", "text": m["text"], "sent": sent}])[-40:]
-                    log("급변", m["text"].replace("\n", " / ")[:120])
-                    changed = True
-            # 시세 5분마다
-            if t0 - t_intra > 290:
-                intra = intraday()
+                wsyms = [x[1] for x in tl] + ctx
+                df = download_1m([t[0] for t in BL.INTRA] + wsyms)
+                intra = intraday(df)
                 t_intra = t0
                 changed = True
+                data, daily, qts = W.fetch(wsyms, daily, t0, df=df)
+                quotes = [{"n": n, "s": sym, **qts[sym]} for k, sym, n, g in tl if k.startswith("W:") and sym in qts]
+                winfo["n"], winfo["live"] = len(tl), sum(1 for x in tl if x[1] in data)
+                if watch_on:
+                    for m in W.check(CONF["c"], tl, data, wst):
+                        sent = tg(env, m["text"])
+                        alerts = (alerts + [{"at": now().strftime("%m-%d %H:%M"), "k": m["k"], "type": "move", "text": m["text"], "sent": sent}])[-40:]
+                        log("급변", m["text"].replace("\n", " / ")[:120])
+                del df
             if changed and t0 - t_push > 50:
                 live = {"v": 1, "at": now().strftime("%Y-%m-%d %H:%M"), "intra": intra, "macro": events, "alerts": alerts, "watch": winfo,
                         "tg": tg_status(), "quotes": quotes}

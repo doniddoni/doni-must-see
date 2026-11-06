@@ -36,7 +36,8 @@ INTRA = [
     ("^GSPC", "SPX", "S&P 500", "px"), ("^IXIC", "IXIC", "나스닥", "px"),
     ("^KS11", "KOSPI", "코스피", "px"), ("^KQ11", "KOSDAQ", "코스닥", "px"),
     ("^N225", "N225", "니케이", "px"), ("^HSI", "HSI", "항셍", "px"),
-    ("^TNX", "US10Y", "미 10년", "rate"), ("KRW=X", "USDKRW", "원/달러", "px"),
+    ("2YY=F", "US2Y", "미 2년", "rate"), ("^TNX", "US10Y", "미 10년", "rate"), ("^TYX", "US30Y", "미 30년", "rate"),
+    ("KRW=X", "USDKRW", "원/달러", "px"),
     ("DX-Y.NYB", "DXY", "달러인덱스", "px"), ("CL=F", "WTI", "WTI", "px"),
     ("GC=F", "GOLD", "금", "px"), ("^VIX", "VIX", "VIX", "px"),
 ]
