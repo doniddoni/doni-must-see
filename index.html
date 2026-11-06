@@ -265,7 +265,7 @@ async function useRaw(raw){
 }
 
 // 새 화면이 올라갔는데 기기가 예전 화면을 저장해두고 있으면, 주소를 살짝 바꿔 새로 불러온다
-const VIEWER_VERSION = "f287869c6777";
+const VIEWER_VERSION = "2f39bcf7e9d6";
 function needsUpdate(latest){
   if (!latest || latest === VIEWER_VERSION) return false;
   const tried = new URLSearchParams(location.search).get("v");
@@ -360,7 +360,10 @@ async function fetchRemote(){
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error("auth"), { auth: true });
   if (!r.ok) throw new Error("remote " + r.status);
   const j = await r.json();
-  const data = JSON.parse(dec.decode(await open(b64d(j.content.replace(/\s/g, "")))));
+  // contents API 는 암호화된 바이트를 글자로 오인해 바꿔 보낼 때가 있음 → 원본은 git blob 으로 받기
+  const b = await fetch(`https://api.github.com/repos/${sync.repo}/git/blobs/${j.sha}`, { headers: ghHeaders(), cache: "no-store" });
+  if (!b.ok) throw new Error("blob " + b.status);
+  const data = JSON.parse(dec.decode(await open(b64d((await b.json()).content.replace(/\s/g, "")))));
   return { stars: data.stars || {}, sha: j.sha };
 }
 function applyOps(base, ops){
