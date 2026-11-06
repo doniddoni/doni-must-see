@@ -509,7 +509,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "9e48c9fc4d72";
+      var ver = "0e7bdbab67e1";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -1238,7 +1238,7 @@ var Grade = (function () {
 /* 장중 타임라인: 08:00 ~ 다음날 08:00 (KST) 5분봉 + 지표 발표 시각 + Must See 글 시각 */
 var Timeline = (function () {
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
-  var ORDER = ["ES", "NQ", "SPX", "IXIC", "KOSPI", "KOSDAQ", "N225", "HSI", "US10Y", "USDKRW", "DXY", "WTI", "GOLD", "VIX"];
+  var ORDER = ["ES", "NQ", "SPX", "IXIC", "KOSPI", "KOSDAQ", "N225", "HSI", "US2Y", "US10Y", "US30Y", "USDKRW", "DXY", "WTI", "GOLD", "VIX"];
   var DEF = ["ES", "NQ", "KOSPI", "US10Y", "USDKRW"];
   var B = null, cache = {}, sel = DEF.slice(), st = { date: null, data: null, ms: [], ev: [] };
   try { var s0 = JSON.parse(localStorage.getItem("tlSel") || "null"); if (s0 && s0.length) sel = s0; } catch (e) {}
@@ -1319,7 +1319,7 @@ var Timeline = (function () {
     var avail = ORDER.filter(function (k) { return D && D.s[k] && D.s[k].length; });
     var h = '<div class="tl-chips">' + ORDER.map(function (k) {
       var on = sel.indexOf(k) >= 0, has = avail.indexOf(k) >= 0;
-      return '<button class="fbtn" data-tl="' + k + '" aria-pressed="' + on + '"' + (has ? "" : " disabled") + '>' + esc((names[k] || [k])[0]) + '</button>';
+      return '<button class="fbtn" data-tl="' + k + '" aria-pressed="' + on + '"' + (has ? "" : " disabled") + '>' + esc((names[k] || [({ US2Y: "미 2년", US30Y: "미 30년" })[k] || k])[0]) + '</button>';
     }).join("") + '</div>';
     if (!D) { body.innerHTML = h + '<div class="empty">이 날은 장중 데이터가 없어요.</div>' + listHTML(); wire(); return; }
     var dst = usDST(st.date), us0 = dst ? 870 : 930, us1 = dst ? 1260 : 1320;
@@ -1460,7 +1460,7 @@ var Live = (function () {
   }
   return { start: start, get: function () { return data; } };
 })();
-/* 내 종목 시세: 오라클 서버가 5분마다 (미국 종목은 프리·애프터 포함) */
+/* 내 종목 시세: 오라클 서버가 1분마다 (미국 종목은 프리·애프터 포함) */
 var Quotes = (function () {
   var SESS = { pre: "프리장", reg: "정규장", post: "애프터" };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -1473,7 +1473,7 @@ var Quotes = (function () {
     var onIndex = document.getElementById("tab-index").getAttribute("aria-selected") === "true";
     root.hidden = !q.length || !onIndex;
     if (!q.length) return;
-    root.innerHTML = '<section class="panel"><div class="panel-h"><h2>내 종목</h2><span>미국 종목은 프리·애프터 포함 · 5분마다 · <button class="al-x" id="qt-edit">종목 바꾸기</button></span></div>' +
+    root.innerHTML = '<section class="panel"><div class="panel-h"><h2>내 종목</h2><span>미국 종목은 프리·애프터 포함 · 1분마다 · <button class="al-x" id="qt-edit">종목 바꾸기</button></span></div>' +
       q.map(function (x) {
         var s = x.sess, line;
         if (s === "pre") line = '<span class="qt-tag pre">' + SESS.pre + '</span><span>프리 ' + pc(x.ext) + '</span><span>지난 정규장 ' + pc(x.reg) + '</span>';
@@ -1492,10 +1492,10 @@ var Alerts = (function () {
   var PATH = "alert_conf.bin";
   var BASE = [["ES", "S&P 선물", "idx"], ["NQ", "나스닥 선물", "idx"], ["SPX", "S&P 500", "idx"], ["IXIC", "나스닥", "idx"],
     ["KOSPI", "코스피", "idx"], ["KOSDAQ", "코스닥", "idx"], ["N225", "니케이", "idx"], ["HSI", "항셍", "idx"],
-    ["US10Y", "미 10년", "rate"], ["USDKRW", "원/달러", "fx"], ["DXY", "달러인덱스", "fx"], ["WTI", "WTI", "cmd"], ["GOLD", "금", "cmd"], ["VIX", "VIX", "vix"]];
+    ["US2Y", "미 2년", "rate"], ["US10Y", "미 10년", "rate"], ["US30Y", "미 30년", "rate"], ["USDKRW", "원/달러", "fx"], ["DXY", "달러인덱스", "fx"], ["WTI", "WTI", "cmd"], ["GOLD", "금", "cmd"], ["VIX", "VIX", "vix"]];
   var ON = { ES: 1, NQ: 1, KOSPI: 1, KOSDAQ: 1, US10Y: 1, USDKRW: 1, WTI: 1, VIX: 1 };
   var GROUPS = [["idx", "지수·선물", "%", [1.5, 0.7]], ["stock", "내 종목", "%", [5, 2.5]], ["fx", "환율·달러", "%", [1, 0.5]],
-    ["cmd", "유가·금", "%", [3, 1.5]], ["rate", "미 10년 금리", "bp", [10, 5]], ["vix", "VIX", "%", [15, 10]]];
+    ["cmd", "유가·금", "%", [3, 1.5]], ["rate", "미 국채금리", "bp", [10, 5]], ["vix", "VIX", "%", [15, 10]]];
   var conf = null, sha = null, loaded = false, dirty = false;
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -1602,7 +1602,7 @@ var Alerts = (function () {
   function render() {
     var c = conf;
     var h = '<div class="sheet" role="dialog" aria-modal="true" aria-label="급변 알림 설정">' +
-      '<div class="sheet-h"><div><div class="nlab">오라클 서버가 5분마다 확인</div><h2>급변 알림</h2></div><button class="icon-btn" id="al-x">닫기</button></div>' +
+      '<div class="sheet-h"><div><div class="nlab">오라클 서버가 1분마다 확인</div><h2>급변 알림</h2></div><button class="icon-btn" id="al-x">닫기</button></div>' +
       '<section class="sbox"><h3>① 알림 받을 텔레그램 봇</h3>' +
       '<div class="al-msg">BotFather에서 새로 만든 봇의 토큰을 붙여 넣고 → 텔레그램에서 그 봇에게 \'시작\'을 누른 다음 → \'연결 확인\'. 토큰은 Must See 비밀번호로 잠가서 저장돼요.</div>' +
       '<div class="al-row"><input id="al-token" class="ninput" type="password" autocomplete="off" placeholder="봇 토큰 (123456:ABC…)" value="' + esc(c.tg.token) + '"><button class="al-btn" id="al-conn">연결 확인</button></div>' +
