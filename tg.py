@@ -44,7 +44,7 @@ KW_STATE = HOME / "kw_state.json"
 STATUS = HOME / "tg_status.json"
 SITE = os.environ.get("DONI_SITE", "https://doniddoni.github.io/doni-must-see/")
 SNIPPET_LEN = 700
-POLL_SEC = 180          # 놓친 메시지 이어 읽기 간격
+POLL_SEC = 60           # 놓친 메시지 이어 읽기 간격 (텔레그램이 채널 업데이트를 안 보내 줄 때가 있어 직접 확인)
 MS_QUIET = 60           # Must See: 마지막 글 뒤 이만큼 조용하면 실행
 MS_GAP = 300            # Must See: 실행 사이 최소 간격
 
@@ -311,6 +311,7 @@ class Live:
         self.ents = {}
         self.ms_ent = None
         self.ms_pending, self.ms_last_ev, self.ms_last_run = False, 0.0, 0.0
+        self.ms_sig = None
         self.apply_conf(srv)
 
     def apply_conf(self, srv):
@@ -406,6 +407,18 @@ class Live:
             if msgs:
                 await self.handle(ent, msgs)
 
+    async def ms_check(self):
+        """Must See 최근 30개 글의 (번호, 수정 시각) → 바뀌었으면 새 글·수정·삭제로 봄"""
+        if self.ms_ent is None:
+            return
+        msgs = await self.client.get_messages(self.ms_ent, limit=30)
+        sig = [(m.id, int(m.edit_date.timestamp()) if m.edit_date else 0) for m in msgs]
+        if self.ms_sig is not None and sig != self.ms_sig:
+            self.ms_pending, self.ms_last_ev = True, time.time()
+            ST["ms_events"] += 1
+            log("Must See 변화 감지 (확인)")
+        self.ms_sig = sig
+
     def run_must_see(self):
         sync = fetch_bin(self.box, "data/sync.bin")
         if not sync.get("run"):
@@ -441,6 +454,10 @@ class Live:
                     await self.catch_up()
                 except Exception as e:
                     log("이어 읽기 실패", e)
+                try:
+                    await self.ms_check()
+                except Exception as e:
+                    log("Must See 확인 실패", e)
             if t - t_conf >= 1800:      # 키워드 설정 (srv.bin) 30분마다
                 t_conf = t
                 try:
@@ -473,6 +490,7 @@ class Live:
         async def on_ms(ev):
             self.ms_pending, self.ms_last_ev = True, time.time()
             ST["ms_events"] += 1
+            self.ms_sig = None      # 다음 확인 때 기준을 새로 잡음 (같은 변화로 두 번 실행하지 않게)
         if self.ms_ent is not None:
             for kind in (events.NewMessage, events.MessageEdited):
                 self.client.add_event_handler(on_ms, kind(chats=[self.ms_ent]))
@@ -507,6 +525,7 @@ async def main():
     live.register()
     save_status(state="연결됨", err="")
     await live.catch_up()
+    await live.ms_check()
     log("실시간 시작")
     await asyncio.gather(client.run_until_disconnected(), live.loop())
 
