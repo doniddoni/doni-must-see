@@ -451,6 +451,7 @@ var MS = (function () {
   }
   function openJSON(p) { return fetchBin(p).then(open).then(function (u) { return JSON.parse(dec.decode(u)); }); }
   function openGz(p) { return fetchBin(p).then(open).then(function (u) { return gunzip(u); }).then(JSON.parse); }
+  function unsealGz(u8) { return open(u8).then(function (u) { return gunzip(u); }).then(JSON.parse); }
   function seal(obj) {
     var iv = crypto.getRandomValues(new Uint8Array(12));
     return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, enc.encode(JSON.stringify(obj))).then(function (ct) {
@@ -466,7 +467,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "20c586395aa9";
+      var ver = "b2285e337b9c";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -491,7 +492,7 @@ var MS = (function () {
     });
   }
   function lock() { try { localStorage.removeItem(LS); sessionStorage.removeItem(LS); } catch (e) {} location.replace("index.html"); }
-  return { boot: boot, loadIndex: loadIndex, loadDay: loadDay, seal: seal, open: open, openGz: openGz, b64d: b64d, b64e: b64e, dec: dec,
+  return { boot: boot, loadIndex: loadIndex, loadDay: loadDay, seal: seal, open: open, openGz: openGz, unsealGz: unsealGz, b64d: b64d, b64e: b64e, dec: dec,
            salt: function () { return meta && meta.salt; }, sync: function () { return sync; }, lock: lock };
 })();
 
@@ -859,7 +860,7 @@ var Loop = (function () {
     if (x.k === "p") return { kind: "p", date: e.date, title: e.company + " 잠정실적", sub: e.period || "", actual: [e.op ? "영업익 " + e.op : "", e.op_diff ? "컨센 " + e.op_diff : ""].filter(Boolean).join(" · ") };
     return { kind: x.k, date: e.date, title: e.company + (x.k === "n" ? " IR" : " 실적 발표"), sub: [e.period, e.time].filter(Boolean).join(" · "), actual: "" };
   }
-  function register(x) { var k = key(x); if (!reg[k]) reg[k] = info(x); return k; }
+  function register(x) { var k = key(x); reg[k] = info(x); return k; }
   function state(k) {
     var v = MNOTES.ev(k); if (!v) return "";
     var hasPre = v.pre && (v.pre.dir || v.pre.react || v.pre.memo || Object.keys(v.pre.sec || {}).length);
@@ -1194,13 +1195,34 @@ var Timeline = (function () {
   function usDST(date) { var t = Date.parse(date + "T12:00:00Z"), d = new Date(t), y = d.getUTCFullYear(); var m = new Date(Date.UTC(y, 2, 1)), n = new Date(Date.UTC(y, 10, 1)); return t >= Date.UTC(y, 2, 1 + ((7 - m.getUTCDay()) % 7) + 7) && t < Date.UTC(y, 10, 1 + ((7 - n.getUTCDay()) % 7)); }
   function text(html) { var d = document.createElement("div"); d.innerHTML = String(html || "").replace(/<br\s*\/?>/gi, " "); return (d.textContent || "").replace(/\s+/g, " ").trim(); }
 
+  var live = null;
   function init(b) { B = b; }
+  function setLive(L) {
+    live = L;
+    if ($("tl-live")) $("tl-live").textContent = liveTag();
+    if (st.date && L && L.intra && L.intra.date === st.date && $("tl-body")) { st.data = mergeLive(st.data); draw(); }
+  }
+  function liveTag() {
+    if (!live || !live.at) return "08시·23시 갱신";
+    var age = (Date.now() - Date.parse(live.at.replace(" ", "T") + ":00+09:00")) / 60000;
+    return age < 20 ? "실시간 · " + live.at.slice(11) + " 기준" : "실시간 서버 응답 없음 (마지막 " + live.at.slice(5) + ")";
+  }
+  function mergeLive(base) {
+    if (!live || !live.intra || live.intra.date !== st.date) return base;
+    var out = { date: st.date, s: {}, names: (base && base.names) || live.intra.names };
+    Object.keys((base && base.s) || {}).forEach(function (k) { out.s[k] = base.s[k]; });
+    Object.keys(live.intra.s || {}).forEach(function (k) {
+      var m = {}; (out.s[k] || []).forEach(function (p) { m[p[0]] = p[1]; }); live.intra.s[k].forEach(function (p) { m[p[0]] = p[1]; });
+      out.s[k] = Object.keys(m).map(Number).sort(function (a, b) { return a - b; }).map(function (x) { return [x, m[x]]; });
+    });
+    return out;
+  }
   function show(date) {
     st.date = date; st.data = null; st.ms = []; st.ev = [];
     var root = $("tl"); if (!root || !B) return;
-    var rel = B.intra && B.intra[date];
-    root.innerHTML = '<section class="panel tl"><div class="panel-h"><h2>장중 타임라인</h2><span>' + mdw(date) + ' 08:00 → ' + mdw(addDays(date, 1)) + ' 08:00 · 08시·23시 갱신</span></div>' +
-      '<div id="tl-body"><div class="empty">' + (rel ? "불러오는 중…" : "이 날은 장중 데이터가 없어요. 11월 5일부터 쌓이고 있어요.") + '</div></div></section>';
+    var rel = B.intra && B.intra[date], hasLive = live && live.intra && live.intra.date === date;
+    root.innerHTML = '<section class="panel tl"><div class="panel-h"><h2>장중 타임라인</h2><span>' + mdw(date) + ' 08:00 → ' + mdw(addDays(date, 1)) + ' 08:00 · <span id="tl-live">' + liveTag() + '</span></span></div>' +
+      '<div id="tl-body"><div class="empty">' + (rel || hasLive ? "불러오는 중…" : "이 날은 장중 데이터가 없어요. 11월 5일부터 쌓이고 있어요.") + '</div></div></section>';
     // 지표 발표
     (B.macro || []).forEach(function (e) {
       if (!e.time) return;
@@ -1212,7 +1234,7 @@ var Timeline = (function () {
     var pMs = Promise.all([MS.loadDay(addDays(date, -1)).catch(function () { return null; }), MS.loadDay(date).catch(function () { return null; }), MS.loadDay(addDays(date, 1)).catch(function () { return null; })]);
     Promise.all([pData.catch(function () { return null; }), pMs]).then(function (r) {
       if (st.date !== d0 || !$("tl-body")) return;
-      st.data = r[0];
+      st.data = mergeLive(r[0]);
       var seen = {};
       r[1].forEach(function (day) {
         ((day && day.items) || []).forEach(function (it) {
@@ -1327,7 +1349,40 @@ var Timeline = (function () {
       var el = body.querySelector(".tl-it.hl"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
   }
-  return { init: init, show: show };
+  return { init: init, show: show, setLive: setLive };
+})();
+
+/* 실시간 서버(오라클) 데이터: doni-must-see live 브랜치 live.bin, 1분마다 확인 */
+var Live = (function () {
+  var B = null, data = null, timer = null, lastAt = "";
+  function apply(L) {
+    data = L;
+    // 경제지표 실제치·예상치를 캘린더 일정에 덧붙임 (날짜·나라·이름이 같은 것)
+    var idx = {};
+    (L.macro || []).forEach(function (e) { idx[e.date + "|" + e.country + "|" + e.title] = e; });
+    var hit = 0;
+    (B.macro || []).forEach(function (e) {
+      var l = idx[e.date + "|" + e.country + "|" + e.title]; if (!l) return;
+      if (l.actual && e.actual !== l.actual) { e.actual = l.actual; hit++; }
+      if (!e.forecast && l.forecast) e.forecast = l.forecast;
+    });
+    Timeline.setLive(L);
+    if (hit) Loop.hooks.changed.forEach(function (f) { try { f(); } catch (x) {} });
+  }
+  function poll() {
+    var s = MS.sync(); if (!s || document.visibilityState === "hidden") return;
+    fetch("https://api.github.com/repos/" + s.repo + "/contents/live.bin?ref=live&_=" + Date.now(),
+      { headers: { Authorization: "Bearer " + s.token, Accept: "application/vnd.github.raw", "X-GitHub-Api-Version": "2022-11-28" }, cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(function (b) { return MS.unsealGz(new Uint8Array(b)); })
+      .then(function (L) { if (L && L.at !== lastAt) { lastAt = L.at; apply(L); } else if (L) Timeline.setLive(L); })
+      .catch(function () {});
+  }
+  function start(b) {
+    B = b; poll(); clearInterval(timer); timer = setInterval(poll, 60000);
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") poll(); });
+  }
+  return { start: start, get: function () { return data; } };
 })();
 </script>
 <script>
@@ -2168,7 +2223,7 @@ var Timeline = (function () {
         initCalendar();
         if (b.data) render(b.data);
         else fail("지수 데이터가 아직 연결되지 않았어요. 캘린더·노트는 쓸 수 있어요. (telegram-keyword-monitor 저장소에 RA_READ_TOKEN 시크릿 등록 필요)");
-        Grade.init(b); Timeline.init(b);
+        Grade.init(b); Timeline.init(b); Live.start(b);
         Study.init(b);
         Loop.hooks.changed.push(function () {
           if (cal.data) renderCal();
