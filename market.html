@@ -381,6 +381,24 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .secrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13.5px; align-items: baseline; }
 #rev .panel .snav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 #rev .sdate { font: 700 17px/1.3 var(--f-display); min-width: 9em; text-align: center; }
+/* 급변 알림 설정 */
+.al-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.al-row .ninput { flex: 1 1 160px; width: auto; min-width: 0; }
+.al-btn { font: inherit; font-size: 13px; border: 1px solid var(--accent); color: var(--accent); background: var(--card); border-radius: 10px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+.al-btn:disabled { opacity: .55; cursor: wait; }
+.al-msg { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.al-msg.ok { color: var(--accent); font-weight: 600; } .al-msg.bad { color: var(--up); }
+.sec[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent); }
+.al-tog { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.al-tog input { width: 18px; height: 18px; accent-color: var(--accent); }
+.al-w { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.al-w .c { color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+.al-x { font: inherit; font-size: 12.5px; border: 0; background: var(--soft); color: var(--muted); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.al-th { display: grid; grid-template-columns: minmax(0, 1fr) 76px 76px; gap: 6px 8px; align-items: center; font-size: 13.5px; }
+.al-th .ninput { padding: 6px 8px; font-size: 15px; text-align: right; }
+.al-th .h { font-size: 12px; color: var(--muted); font-weight: 700; text-align: right; }
+.al-log { display: grid; gap: 6px; }
+.al-log div { font-size: 12.5px; white-space: pre-wrap; background: var(--soft); border-radius: 8px; padding: 6px 9px; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -391,6 +409,7 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
       <h1 class="brand">Market<small class="num" id="asof"></small></h1>
       <span class="sp"></span>
       <a class="icon-btn" href="index.html">Must See</a>
+      <button class="icon-btn" id="alertBtn" type="button">알림</button>
       <button class="icon-btn" id="lockBtn" type="button">잠금</button>
     </div>
     <nav class="tabs" role="tablist" aria-label="화면 선택">
@@ -420,6 +439,7 @@ details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 </main>
 
 <div class="ev-ov" id="ev-ov" hidden></div>
+<div class="ev-ov" id="al-ov" hidden></div>
 
 <main class="gutter" id="comp" role="tabpanel" aria-labelledby="tab-companies" hidden>
   <div class="msg">기업 리스트를 불러오는 중입니다.</div>
@@ -467,7 +487,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "b2285e337b9c";
+      var ver = "f287869c6777";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -1384,6 +1404,204 @@ var Live = (function () {
   }
   return { start: start, get: function () { return data; } };
 })();
+/* 급변 알림 설정: stars 브랜치 alert_conf.bin (암호화) → 오라클 서버(Doni Live)가 5분마다 읽어 감 */
+var Alerts = (function () {
+  var PATH = "alert_conf.bin";
+  var BASE = [["ES", "S&P 선물", "idx"], ["NQ", "나스닥 선물", "idx"], ["SPX", "S&P 500", "idx"], ["IXIC", "나스닥", "idx"],
+    ["KOSPI", "코스피", "idx"], ["KOSDAQ", "코스닥", "idx"], ["N225", "니케이", "idx"], ["HSI", "항셍", "idx"],
+    ["US10Y", "미 10년", "rate"], ["USDKRW", "원/달러", "fx"], ["DXY", "달러인덱스", "fx"], ["WTI", "WTI", "cmd"], ["GOLD", "금", "cmd"], ["VIX", "VIX", "vix"]];
+  var ON = { ES: 1, NQ: 1, KOSPI: 1, KOSDAQ: 1, US10Y: 1, USDKRW: 1, WTI: 1, VIX: 1 };
+  var GROUPS = [["idx", "지수·선물", "%", [1.5, 0.7]], ["stock", "내 종목", "%", [5, 2.5]], ["fx", "환율·달러", "%", [1, 0.5]],
+    ["cmd", "유가·금", "%", [3, 1.5]], ["rate", "미 10년 금리", "bp", [10, 5]], ["vix", "VIX", "%", [15, 10]]];
+  var conf = null, sha = null, loaded = false, dirty = false;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function blank() {
+    var base = {}, rules = {};
+    BASE.forEach(function (b) { base[b[0]] = !!ON[b[0]]; });
+    GROUPS.forEach(function (g) { rules[g[0]] = g[3].slice(); });
+    return { v: 1, on: true, macro: true, tg: { token: "", chat: "", bot: "", who: "" }, base: base, rules: rules, watch: [] };
+  }
+  function url() { var s = MS.sync(); return "https://api.github.com/repos/" + s.repo + "/contents/" + PATH; }
+  function hdr() { return { Authorization: "Bearer " + MS.sync().token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }; }
+  function load() {
+    if (!MS.sync()) return Promise.reject(new Error("동기화 열쇠가 없어요"));
+    return fetch(url() + "?ref=" + encodeURIComponent(MS.sync().branch) + "&_=" + Date.now(), { headers: hdr(), cache: "no-store" }).then(function (r) {
+      if (r.status === 404) { conf = blank(); sha = null; loaded = true; return; }
+      if (!r.ok) throw new Error("불러오기 " + r.status);
+      return r.json().then(function (j) {
+        sha = j.sha;
+        return MS.open(MS.b64d(j.content.replace(/\s/g, ""))).then(function (u) {
+          var c = JSON.parse(MS.dec.decode(u)), b = blank();
+          c.tg = Object.assign(b.tg, c.tg || {}); c.base = Object.assign(b.base, c.base || {}); c.rules = Object.assign(b.rules, c.rules || {});
+          c.watch = c.watch || []; conf = c; loaded = true;
+        });
+      });
+    });
+  }
+  function save() {
+    conf.updated = new Date().toISOString().slice(0, 19);
+    return MS.seal(conf).then(function (sealed) {
+      var body = { message: "alert settings", branch: MS.sync().branch, content: MS.b64e(sealed) };
+      if (sha) body.sha = sha;
+      return fetch(url(), { method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, hdr()), body: JSON.stringify(body) });
+    }).then(function (r) {
+      if (r.status === 409 || r.status === 422) return load().then(function () { throw new Error("다른 기기에서 먼저 저장했어요. 내용을 다시 불러왔으니 확인 후 한 번 더 저장해 주세요"); });
+      if (!r.ok) throw new Error("저장 " + r.status + (r.status === 401 ? " · 동기화 열쇠 만료" : r.status === 403 || r.status === 404 ? " · 열쇠에 저장 권한 없음" : ""));
+      return r.json().then(function (j) { sha = j.content && j.content.sha; dirty = false; });
+    });
+  }
+
+  // ---------- 텔레그램 (브라우저에서 바로 확인)
+  function tgApi(token, method, params) {
+    var q = params ? "?" + new URLSearchParams(params).toString() : "";
+    return fetch("https://api.telegram.org/bot" + encodeURIComponent(token).replace(/%3A/gi, ":") + "/" + method + q, { cache: "no-store" })
+      .then(function (r) { return r.json(); }, function () { throw new Error("텔레그램에 접속하지 못했어요"); })
+      .then(function (j) { if (!j.ok) throw new Error(j.error_code === 401 || j.error_code === 404 ? "토큰이 맞지 않아요. BotFather가 준 토큰 전체를 그대로 붙여 넣어 주세요" : (j.description || "텔레그램 오류")); return j.result; });
+  }
+  function connect() {
+    var token = $("al-token").value.trim(), m = $("al-tgmsg");
+    if (!token) { setMsg(m, "토큰을 먼저 붙여 넣어 주세요", "bad"); return; }
+    $("al-conn").disabled = true; setMsg(m, "확인 중…");
+    tgApi(token, "getMe").then(function (me) {
+      conf.tg.token = token; conf.tg.bot = me.username || ""; dirty = true;
+      return tgApi(token, "getUpdates", { limit: 100, timeout: 0 }).then(function (ups) {
+        var chat = null;
+        (ups || []).forEach(function (u) { var c = (u.message || u.edited_message || {}).chat; if (c && c.type === "private") chat = c; });
+        if (!chat) {
+          setMsg(m, "봇 @" + me.username + " 확인. 텔레그램에서 @" + me.username + " 대화방을 열고 '시작'(또는 아무 말)을 보낸 뒤 '연결 확인'을 한 번 더 눌러 주세요", "bad");
+          return;
+        }
+        conf.tg.chat = String(chat.id); conf.tg.who = chat.first_name || chat.username || "";
+        $("al-chat").value = conf.tg.chat;
+        setMsg(m, "✓ @" + me.username + " → " + (conf.tg.who || "내 대화방") + " 연결됨. 아래 '저장'을 눌러야 서버에 반영돼요", "ok");
+      });
+    }).catch(function (e) { setMsg(m, e.message, "bad"); }).then(function () { $("al-conn").disabled = false; });
+  }
+  function test() {
+    var token = $("al-token").value.trim(), chat = $("al-chat").value.trim(), m = $("al-tgmsg");
+    if (!token || !chat) { setMsg(m, "토큰과 대화방 번호가 필요해요. '연결 확인'부터 눌러 주세요", "bad"); return; }
+    $("al-test").disabled = true;
+    tgApi(token, "sendMessage", { chat_id: chat, text: "[Doni Market] 테스트 메시지예요. 급변 알림이 이 대화방으로 와요." })
+      .then(function () { setMsg(m, "✓ 테스트 메시지를 보냈어요. 텔레그램을 확인해 주세요", "ok"); })
+      .catch(function (e) { setMsg(m, e.message, "bad"); }).then(function () { $("al-test").disabled = false; });
+  }
+  function setMsg(el, t, cls) { if (!el) return; el.textContent = t; el.className = "al-msg" + (cls ? " " + cls : ""); }
+
+  // ---------- 화면
+  function serverHTML() {
+    var L = Live.get(), w = L && L.watch;
+    if (!L) return '<div class="al-msg">오라클 서버 소식이 아직 없어요. 서버를 만든 뒤 몇 분 지나면 여기에 상태가 나와요.</div>';
+    var h = '<div class="al-msg">서버 마지막 갱신 ' + esc(L.at.slice(5)) + "</div>";
+    if (w) {
+      var same = conf && conf.updated && w.updated === conf.updated;
+      h += '<div class="al-msg' + (w.conf === "ok" && same ? " ok" : "") + '">' +
+        (w.conf === "ok" ? (same ? "✓ 서버가 최신 설정을 읽었어요 (" + esc(w.read) + ") · 감시 " + (w.n || 0) + "개, 지금 시세 들어오는 것 " + (w.live || 0) + "개"
+          : "저장한 설정은 5분 안에 서버가 읽어 가요 (서버가 마지막으로 읽은 시각 " + esc(w.read || "-") + ")")
+          : w.conf === "없음" ? "서버: 아직 저장된 설정이 없어 기본값으로 감시 중" : "서버: 설정 " + esc(w.conf)) + "</div>";
+      if (w.bad && w.bad.length) h += '<div class="al-msg bad">야후에서 못 찾은 종목: ' + esc(w.bad.join(", ")) + " · 코드를 확인해 주세요</div>";
+    }
+    var log = (L.alerts || []).slice(-8).reverse();
+    h += '<div class="nlab">최근 알림</div>' + (log.length ? '<div class="al-log">' + log.map(function (a) { return "<div>" + esc(a.at + "  " + a.text) + "</div>"; }).join("") + "</div>" : '<div class="al-msg">아직 없어요</div>');
+    return h;
+  }
+  function watchHTML() {
+    return conf.watch.length ? conf.watch.map(function (w, i) {
+      return '<div class="al-w"><div>' + esc(w.n || w.c) + (w.n ? '<span class="c">' + esc(w.c) + '</span>' : "") + '</div><button class="al-x" data-al-del="' + i + '">빼기</button></div>';
+    }).join("") : '<div class="al-msg">아직 없어요. 한국 종목은 6자리 코드(예: 005930), 미국은 티커(예: NVDA), 일본은 7203.T 처럼 적어요.</div>';
+  }
+  function render() {
+    var c = conf;
+    var h = '<div class="sheet" role="dialog" aria-modal="true" aria-label="급변 알림 설정">' +
+      '<div class="sheet-h"><div><div class="nlab">오라클 서버가 5분마다 확인</div><h2>급변 알림</h2></div><button class="icon-btn" id="al-x">닫기</button></div>' +
+      '<section class="sbox"><h3>① 알림 받을 텔레그램 봇</h3>' +
+      '<div class="al-msg">BotFather에서 새로 만든 봇의 토큰을 붙여 넣고 → 텔레그램에서 그 봇에게 \'시작\'을 누른 다음 → \'연결 확인\'. 토큰은 Must See 비밀번호로 잠가서 저장돼요.</div>' +
+      '<div class="al-row"><input id="al-token" class="ninput" type="password" autocomplete="off" placeholder="봇 토큰 (123456:ABC…)" value="' + esc(c.tg.token) + '"><button class="al-btn" id="al-conn">연결 확인</button></div>' +
+      '<div class="al-row"><input id="al-chat" class="ninput" inputmode="numeric" placeholder="대화방 번호 (연결 확인 시 자동)" value="' + esc(c.tg.chat) + '"><button class="al-btn" id="al-test">테스트 메시지</button></div>' +
+      '<div class="al-msg' + (c.tg.chat ? " ok" : "") + '" id="al-tgmsg">' + (c.tg.chat ? "✓ " + (c.tg.bot ? "@" + esc(c.tg.bot) : "봇") + " → " + esc(c.tg.who || "대화방 " + c.tg.chat) + " 연결돼 있어요" : "아직 연결 전") + '</div>' +
+      '<label class="al-tog"><input type="checkbox" id="al-on"' + (c.on ? " checked" : "") + '>급변 알림 켜기</label>' +
+      '<label class="al-tog"><input type="checkbox" id="al-macro"' + (c.macro ? " checked" : "") + '>경제지표 실제치 알림도 이 봇으로</label>' +
+      '</section>' +
+      '<section class="sbox"><h3>② 지켜볼 지수·자산</h3><div class="secs">' +
+      BASE.map(function (b) { return '<button class="sec" data-al-base="' + b[0] + '" aria-pressed="' + !!c.base[b[0]] + '">' + esc(b[1]) + "</button>"; }).join("") +
+      '</div><div class="al-msg">S&P·나스닥은 선물로 보면 프리·애프터·밤 시간까지 잡혀요</div></section>' +
+      '<section class="sbox"><h3>③ 내 종목</h3><div id="al-wl">' + watchHTML() + '</div>' +
+      '<div class="al-row"><input id="al-code" class="ninput" placeholder="코드 (005930 / NVDA)" autocapitalize="characters" style="flex-basis:120px"><input id="al-name" class="ninput" placeholder="이름 (선택)" style="flex-basis:110px"><button class="al-btn" id="al-add">추가</button></div></section>' +
+      '<section class="sbox"><h3>④ 기준값</h3><div class="al-msg">하루 = 전일 종가 대비 (기준의 2배·3배를 넘을 때 한 번씩 더) · 30분 = 최근 30분 사이 급등락 (같은 방향은 45분에 한 번)</div>' +
+      '<div class="al-th"><span></span><span class="h">하루</span><span class="h">30분</span>' +
+      GROUPS.map(function (g) {
+        var v = c.rules[g[0]] || g[3];
+        return "<span>" + esc(g[1]) + ' <span class="nlab">' + g[2] + '</span></span><input class="ninput" inputmode="decimal" data-al-r="' + g[0] + '|0" value="' + v[0] + '"><input class="ninput" inputmode="decimal" data-al-r="' + g[0] + '|1" value="' + v[1] + '">';
+      }).join("") + "</div></section>" +
+      '<div class="nsave"><button class="savebtn" id="al-save">저장</button><span class="nsst" id="al-st">' + (dirty ? "저장 전 변경 있음" : "") + "</span></div>" +
+      '<section class="sbox"><h3>서버 상태</h3><div id="al-srv">' + serverHTML() + "</div></section></div>";
+    $("al-ov").innerHTML = h;
+    wire();
+  }
+  function touch() { dirty = true; var s = $("al-st"); if (s) { s.textContent = "저장 전 변경 있음"; s.className = "nsst"; } }
+  function readForm() {
+    conf.tg.token = $("al-token").value.trim(); conf.tg.chat = $("al-chat").value.trim();
+    conf.on = $("al-on").checked; conf.macro = $("al-macro").checked;
+    document.querySelectorAll("[data-al-r]").forEach(function (i) {
+      var p = i.getAttribute("data-al-r").split("|"), v = parseFloat(i.value);
+      if (!isNaN(v) && v >= 0) conf.rules[p[0]][+p[1]] = v;
+    });
+  }
+  function wire() {
+    $("al-x").onclick = close;
+    $("al-conn").onclick = connect; $("al-test").onclick = test;
+    ["al-token", "al-chat"].forEach(function (id) { $(id).oninput = touch; });
+    ["al-on", "al-macro"].forEach(function (id) { $(id).onchange = touch; });
+    document.querySelectorAll("[data-al-r]").forEach(function (i) { i.oninput = touch; });
+    document.querySelectorAll("[data-al-base]").forEach(function (b) {
+      b.onclick = function () { var k = b.getAttribute("data-al-base"); conf.base[k] = !conf.base[k]; b.setAttribute("aria-pressed", String(conf.base[k])); touch(); };
+    });
+    $("al-add").onclick = function () {
+      var code = $("al-code").value.trim().toUpperCase(), name = $("al-name").value.trim();
+      if (!code) return;
+      if (!/^[0-9A-Z.\-=^]{1,15}$/.test(code)) { setMsg($("al-st"), "코드는 영문·숫자로 적어 주세요 (예: 005930, NVDA)", "bad"); return; }
+      if (conf.watch.some(function (w) { return w.c === code; })) return;
+      conf.watch.push({ c: code, n: name }); $("al-code").value = $("al-name").value = "";
+      $("al-wl").innerHTML = watchHTML(); wireDel(); touch();
+    };
+    $("al-code").onkeydown = $("al-name").onkeydown = function (e) { if (e.key === "Enter") $("al-add").click(); };
+    wireDel();
+    $("al-save").onclick = function () {
+      readForm();
+      var b = $("al-save"), st = $("al-st");
+      if (conf.on && !(conf.tg.token && conf.tg.chat)) { st.textContent = "봇이 아직 연결 전이에요. 저장은 되지만 알림은 봇을 연결해야 와요"; st.className = "nsst bad"; }
+      b.disabled = true;
+      save().then(function () {
+        st.textContent = "✓ 저장됨 " + new Date().toTimeString().slice(0, 5) + " · 서버가 5분 안에 읽어 가요"; st.className = "nsst ok";
+        $("al-srv").innerHTML = serverHTML();
+      }).catch(function (e) { st.textContent = "⚠ " + e.message; st.className = "nsst bad"; })
+        .then(function () { b.disabled = false; });
+    };
+  }
+  function wireDel() {
+    document.querySelectorAll("[data-al-del]").forEach(function (b) {
+      b.onclick = function () { conf.watch.splice(+b.getAttribute("data-al-del"), 1); $("al-wl").innerHTML = watchHTML(); wireDel(); touch(); };
+    });
+  }
+  var srvTimer = null;
+  function open() {
+    var ov = $("al-ov"); ov.hidden = false; document.body.style.overflow = "hidden";
+    if (!MS.sync()) { ov.innerHTML = '<div class="sheet"><div class="sheet-h"><h2>급변 알림</h2><button class="icon-btn" id="al-x">닫기</button></div><div class="al-msg bad">이 기기에 동기화 열쇠가 없어 설정을 저장할 수 없어요.</div></div>'; $("al-x").onclick = close; return; }
+    if (loaded && conf) render(); else ov.innerHTML = '<div class="sheet"><div class="al-msg">설정을 불러오는 중…</div></div>';
+    (dirty ? Promise.resolve() : load()).then(render).catch(function (e) {
+      ov.innerHTML = '<div class="sheet"><div class="sheet-h"><h2>급변 알림</h2><button class="icon-btn" id="al-x">닫기</button></div><div class="al-msg bad">설정을 불러오지 못했어요: ' + esc(e.message) + "</div></div>";
+      $("al-x").onclick = close;
+    });
+    clearInterval(srvTimer); srvTimer = setInterval(function () { if ($("al-srv")) $("al-srv").innerHTML = serverHTML(); }, 30000);
+  }
+  function close() {
+    if (conf && $("al-token")) readForm();
+    clearInterval(srvTimer); $("al-ov").hidden = true; $("al-ov").innerHTML = ""; document.body.style.overflow = "";
+  }
+  document.addEventListener("click", function (e) { if (e.target.id === "al-ov") close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("al-ov").hidden) close(); });
+  return { open: open };
+})();
 </script>
 <script>
 (function () {
@@ -2211,6 +2429,7 @@ var Live = (function () {
     if (location.hash === "#calendar") setTab("calendar");
     if (location.hash === "#companies") setTab("companies");
     document.getElementById("lockBtn").addEventListener("click", function () { MS.lock(); });
+    document.getElementById("alertBtn").addEventListener("click", function () { Alerts.open(); });
     MS.boot().then(function (b) {
       if (!b) {
         document.getElementById("study").innerHTML = "";
