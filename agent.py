@@ -4,6 +4,7 @@ Doni Live — 오라클 서버에서 계속 도는 실시간 시장 수집기.
 - 2분봉 시세(선물·지수·금리·환율·원자재, 프리·애프터 포함): 5분마다
 - 경제지표 일정·예상·실제치(야후 + 이번 주 Forex Factory): 30분마다, 발표 시각 전후에는 1분마다
 - 실제치가 나오면 텔레그램 알림
+- 급변 알림: Must See 마켓 '알림 설정'(지수·종목·기준값·알림 봇)을 5분마다 읽어 크게 움직이면 알림 (watch.py)
 - 결과는 Must See 비밀번호로 암호화해 doni-must-see 저장소 live 브랜치에 올림 (기록이 쌓이지 않게 매번 새로 덮어씀)
 - 상태(시각·건수·오류만, 내용 없음)는 같은 브랜치 status.json
 
@@ -30,8 +31,9 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
+import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.1"
+VERSION = "2026-11-06.2"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
@@ -70,20 +72,30 @@ class Box:
         if self.aes.decrypt(chk[:12], chk[12:], None) != b"mustsee-ok":
             raise SystemExit("Must See 비밀번호가 맞지 않음")
 
+    def open(self, raw: bytes) -> bytes:
+        return self.aes.decrypt(raw[:12], raw[12:], None)
+
     def seal(self, data: bytes) -> bytes:
         iv = os.urandom(12)
         return iv + self.aes.encrypt(iv, data, None)
 
 
 # ---------------------------------------------------------------- 텔레그램
+CONF = {"c": None}      # Must See '알림 설정' (봇 토큰·채팅이 있으면 그쪽으로 보냄)
+
+
 def tg(env, text):
-    if not env.get("TG_TOKEN") or not env.get("TG_CHAT"):
-        return
+    c = (CONF["c"] or {}).get("tg") or {}
+    token, chat = (c.get("token"), c.get("chat")) if c.get("token") and c.get("chat") else (env.get("TG_TOKEN"), env.get("TG_CHAT"))
+    if not token or not chat:
+        return False
     try:
-        data = urllib.parse.urlencode({"chat_id": env["TG_CHAT"], "text": text, "disable_web_page_preview": "true"}).encode()
-        urllib.request.urlopen(f"https://api.telegram.org/bot{env['TG_TOKEN']}/sendMessage", data=data, timeout=20).read()
+        data = urllib.parse.urlencode({"chat_id": chat, "text": text, "disable_web_page_preview": "true"}).encode()
+        urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=20).read()
+        return True
     except Exception as e:
         log("텔레그램 실패", type(e).__name__)
+        return False
 
 
 # ---------------------------------------------------------------- 시세
@@ -190,11 +202,14 @@ def main():
     st = json.loads(STATE.read_text()) if STATE.exists() else {}
     announced = set(st.get("announced", []))
     alerts = st.get("alerts", [])
+    wst = st.get("watch", {})                     # 급변 알림 상태 (보낸 단계·30분 쿨다운·종목 코드 해석)
+    wst.setdefault("resolved", {})
+    winfo, daily = {"conf": "아직", "n": 0, "bad": []}, {}
     log("시작", VERSION)
     tg(env, "[Doni Live] 실시간 수집을 시작했어요 (" + VERSION + ")") if not st else None
 
     intra, events, ff = {}, [], {"ev": [], "at": 0}
-    t_intra = t_econ = t_push = t_gc = 0.0
+    t_intra = t_econ = t_push = t_gc = t_conf = t_watch = 0.0
     last_err, errs = "", 0
     while True:
         t0 = time.time()
@@ -226,22 +241,51 @@ def main():
                         announced.add(k)
                         if et and n - et < timedelta(hours=3) and e["imp"] in ("H", "M"):   # 오래된 것은 알림 없이 기록만
                             msg = alert_text(e)
-                            tg(env, msg)
-                            alerts = (alerts + [{"at": n.strftime("%m-%d %H:%M"), "k": k, "text": msg}])[-30:]
+                            if (CONF["c"] or {}).get("macro", True):
+                                tg(env, msg)
+                            alerts = (alerts + [{"at": n.strftime("%m-%d %H:%M"), "k": k, "type": "macro", "text": msg}])[-40:]
                             log("알림", msg.splitlines()[0])
+            # 알림 설정 5분마다 읽기
+            if t0 - t_conf > 290:
+                c, cs = W.load_conf(box, env.get("GH_TOKEN"))
+                t_conf = t0
+                if c is not None or cs == "없음":
+                    CONF["c"] = c
+                winfo.update(conf=cs, read=now().strftime("%m-%d %H:%M"), updated=(c or {}).get("updated", ""),
+                             bot=((c or {}).get("tg") or {}).get("bot", ""))
+                codes = [str(w.get("c") or "").strip() for w in (CONF["c"] or {}).get("watch") or [] if str(w.get("c") or "").strip()]
+                try:
+                    wst["resolved"], bad = W.resolve(codes, wst["resolved"])
+                    winfo["bad"] = bad
+                except Exception as e:
+                    log("종목 코드 확인 실패", e)
+                changed = True
+            # 급변 판단 5분마다 (설정에서 끄면 쉼)
+            if t0 - t_watch > 290 and (CONF["c"] or {}).get("on", True):
+                tl = W.targets(CONF["c"], wst["resolved"])
+                ctx = [b[1] for b in W.BASE if b[0] in W.CONTEXT]
+                data, daily = W.fetch([x[1] for x in tl] + ctx, daily, t0)
+                t_watch = t0
+                winfo["n"], winfo["live"] = len(tl), sum(1 for x in tl if x[1] in data)
+                for m in W.check(CONF["c"], tl, data, wst):
+                    sent = tg(env, m["text"])
+                    alerts = (alerts + [{"at": now().strftime("%m-%d %H:%M"), "k": m["k"], "type": "move", "text": m["text"], "sent": sent}])[-40:]
+                    log("급변", m["text"].replace("\n", " / ")[:120])
+                    changed = True
             # 시세 5분마다
             if t0 - t_intra > 290:
                 intra = intraday()
                 t_intra = t0
                 changed = True
             if changed and t0 - t_push > 50:
-                live = {"v": 1, "at": now().strftime("%Y-%m-%d %H:%M"), "intra": intra, "macro": events, "alerts": alerts}
+                live = {"v": 1, "at": now().strftime("%Y-%m-%d %H:%M"), "intra": intra, "macro": events, "alerts": alerts, "watch": winfo}
                 status = {"at": live["at"], "version": VERSION, "intra": {k: len(v) for k, v in intra.get("s", {}).items()},
                           "intra_date": intra.get("date"), "events": len(events), "hot": hot,
-                          "actuals": sum(1 for e in events if e.get("actual")), "error": last_err}
+                          "actuals": sum(1 for e in events if e.get("actual")), "error": last_err,
+                          "alert_conf": winfo.get("conf"), "watching": winfo.get("n", 0)}
                 push(env, box, live, status)
                 t_push = t0
-                STATE.write_text(json.dumps({"announced": sorted(announced)[-500:], "alerts": alerts}, ensure_ascii=False))
+                STATE.write_text(json.dumps({"announced": sorted(announced)[-500:], "alerts": alerts, "watch": wst}, ensure_ascii=False))
                 last_err, errs = "", 0
             if t0 - t_gc > 86400:
                 git("gc", "-q", "--prune=now", check=False) if (WORK / ".git").exists() else None
