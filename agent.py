@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
 import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.5"
+VERSION = "2026-11-06.6"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
@@ -214,7 +214,7 @@ def main():
     alerts = st.get("alerts", [])
     wst = st.get("watch", {})                     # 급변 알림 상태 (보낸 단계·30분 쿨다운·종목 코드 해석)
     wst.setdefault("resolved", {})
-    winfo, daily = {"conf": "아직", "n": 0, "bad": []}, {}
+    winfo, daily, quotes = {"conf": "아직", "n": 0, "bad": []}, {}, []
     log("시작", VERSION)
     tg(env, "[Doni Live] 실시간 수집을 시작했어요 (" + VERSION + ")") if not st else None
 
@@ -281,7 +281,8 @@ def main():
             if t0 - t_watch > 290 and (CONF["c"] or {}).get("on", True):
                 tl = W.targets(CONF["c"], wst["resolved"])
                 ctx = [b[1] for b in W.BASE if b[0] in W.CONTEXT]
-                data, daily = W.fetch([x[1] for x in tl] + ctx, daily, t0)
+                data, daily, qts = W.fetch([x[1] for x in tl] + ctx, daily, t0)
+                quotes = [{"n": n, "s": sym, **qts[sym]} for k, sym, n, g in tl if k.startswith("W:") and sym in qts]
                 t_watch = t0
                 winfo["n"], winfo["live"] = len(tl), sum(1 for x in tl if x[1] in data)
                 for m in W.check(CONF["c"], tl, data, wst):
@@ -296,7 +297,7 @@ def main():
                 changed = True
             if changed and t0 - t_push > 50:
                 live = {"v": 1, "at": now().strftime("%Y-%m-%d %H:%M"), "intra": intra, "macro": events, "alerts": alerts, "watch": winfo,
-                        "tg": tg_status()}
+                        "tg": tg_status(), "quotes": quotes}
                 status = {"at": live["at"], "version": VERSION, "intra": {k: len(v) for k, v in intra.get("s", {}).items()},
                           "intra_date": intra.get("date"), "events": len(events), "hot": hot,
                           "actuals": sum(1 for e in events if e.get("actual")), "error": last_err,

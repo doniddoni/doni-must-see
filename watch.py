@@ -111,6 +111,42 @@ def move(sym, daily, intra, t=None):
     return {"d": d.isoformat(), "last": last, "prev": prev, "p30": p30, "ts": last_ts.astimezone(KST)}
 
 
+def is_us(sym):
+    return not any(c in sym for c in ".^=")
+
+
+def quote(sym, daily, pts, t=None):
+    """내 종목 시세 (프리·정규·애프터 구분). 미국 종목은 거래소(뉴욕) 시각으로 판단.
+    → {last, t, sess: pre/reg/post, reg: 정규장 등락 %, ext: 시간외 등락 % 또는 None, stale}"""
+    t = t or now()
+    pts = [(ts, v) for ts, v in pts if v is not None and not math.isnan(v)]
+    closes = [(dd, v) for dd, v in daily if v is not None and not math.isnan(v)]
+    if not pts or not closes:
+        return None
+    ts, last = pts[-1]
+    d = _session_date(ts, sym)
+    before = [v for dd, v in closes if dd < d]
+    today = next((v for dd, v in closes if dd == d), None)
+    prev = before[-1] if before else None
+    pct = lambda a, b: round((a / b - 1) * 100, 2) if a is not None and b else None   # noqa: E731
+    q = {"last": round(last, 4), "t": ts.astimezone(KST).strftime("%m-%d %H:%M"), "stale": t - ts.astimezone(KST) > FRESH}
+    if not is_us(sym):
+        q.update(sess="reg", reg=pct(last, prev), ext=None)
+        return q
+    hm = ts.hour * 60 + ts.minute
+    if hm < 570:                       # 9:30 전 = 프리장: 지난 정규장 종가 대비
+        q.update(sess="pre", reg=pct(prev, before[-2] if len(before) > 1 else None), ext=pct(last, prev))
+    elif hm < 960:                     # 정규장
+        q.update(sess="reg", reg=pct(last, prev), ext=None)
+    else:                              # 16:00 이후 = 애프터: 오늘 정규장 종가 대비
+        rc = today
+        if rc is None:
+            regs = [v for x, v in pts if _session_date(x, sym) == d and 570 <= x.hour * 60 + x.minute < 960]
+            rc = regs[-1] if regs else None
+        q.update(sess="post", reg=pct(rc, prev), ext=pct(last, rc))
+    return q
+
+
 def chg(m, grp, base):
     """변동 크기: 금리는 bp, 나머지는 %"""
     if base is None or base == 0:
@@ -202,11 +238,11 @@ def _col(df, sym):
 
 
 def fetch(symbols, daily_cache, t0):
-    """→ ({기호: move}, 일봉 캐시). 일봉은 30분마다, 2분봉은 매번."""
+    """→ ({기호: move}, 일봉 캐시, {기호: quote}). 일봉은 30분마다, 2분봉은 매번."""
     import yfinance as yf
     syms = sorted(set(symbols))
     if not syms:
-        return {}, daily_cache
+        return {}, daily_cache, {}
     need = [s for s in syms if s not in daily_cache.get("d", {})]
     if t0 - daily_cache.get("at", 0) > 1800 or need:
         df = yf.download(syms, period="10d", interval="1d", group_by="ticker", auto_adjust=False, progress=False, threads=True)
@@ -217,16 +253,23 @@ def fetch(symbols, daily_cache, t0):
                 d[s] = [(ix.date() if hasattr(ix, "date") else ix, float(v)) for ix, v in ser.items()]
         daily_cache = {"at": t0, "d": d}
     df = yf.download(syms, period="2d", interval="2m", prepost=True, group_by="ticker", auto_adjust=False, progress=False, threads=True)
-    out = {}
+    out, quotes = {}, {}
     for s in syms:
         ser = _col(df, s)
         if ser is None or not len(ser) or s not in daily_cache["d"]:
             continue
         idx = ser.index if ser.index.tz is not None else ser.index.tz_localize("UTC")
-        m = move(s, daily_cache["d"][s], list(zip(idx.to_pydatetime(), [float(v) for v in ser.values])))
+        pts = list(zip(idx.to_pydatetime(), [float(v) for v in ser.values]))
+        m = move(s, daily_cache["d"][s], pts)
         if m:
             out[s] = m
-    return out, daily_cache
+        try:
+            q = quote(s, daily_cache["d"][s], pts)
+            if q:
+                quotes[s] = q
+        except Exception:
+            pass
+    return out, daily_cache, quotes
 
 
 def resolve(codes, resolved):
