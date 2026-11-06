@@ -119,6 +119,10 @@ main{max-width:860px;margin:0 auto;padding:14px var(--gutter-r) 64px var(--gutte
 .dayhead h2{font:700 24px/1.25 var(--f-display);margin:0;text-wrap:balance}
 .dayhead p{margin:0;color:var(--muted);font-size:13px}
 .dayhead .sp{flex:1}
+.sortseg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-left:auto}
+.sortseg button{border:0;background:transparent;color:var(--muted);padding:4px 11px;font:500 12.5px/1.3 var(--f-body);cursor:pointer;white-space:nowrap}
+.sortseg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.meta .srcn{font-family:var(--f-body);font-weight:600;color:var(--ink)}
 .ch{margin:0 0 22px}
 .chh{display:flex;align-items:baseline;gap:8px;padding:0 2px 8px;border-bottom:2px solid var(--accent);margin-bottom:10px;flex-wrap:wrap}
 .chh h3{margin:0;font-size:16px;font-weight:600}
@@ -265,7 +269,7 @@ async function useRaw(raw){
 }
 
 // 새 화면이 올라갔는데 기기가 예전 화면을 저장해두고 있으면, 주소를 살짝 바꿔 새로 불러온다
-const VIEWER_VERSION = "1c56152610df";
+const VIEWER_VERSION = "eb630c2c9050";
 function needsUpdate(latest){
   if (!latest || latest === VIEWER_VERSION) return false;
   const tried = new URLSearchParams(location.search).get("v");
@@ -662,6 +666,19 @@ function groupByChannel(items){
   });
 }
 
+/* 하루 글 보기 순서: 채널별(기본) · 최신순 · 오래된순 (Must See에 담은 시각 기준). 이 기기에 기억 */
+const SORT_LS = "mustsee.sort.v1";
+let sortMode = store.get(SORT_LS) || "ch";
+function sortSeg(){
+  const seg = document.createElement("div"); seg.className = "sortseg"; seg.setAttribute("role", "group"); seg.setAttribute("aria-label", "보기 순서");
+  for (const [k, l] of [["ch", "채널별"], ["new", "최신순"], ["old", "오래된순"]]){
+    const b = document.createElement("button"); b.type = "button"; b.textContent = l; b.setAttribute("aria-pressed", String(sortMode === k));
+    b.addEventListener("click", () => { if (sortMode === k) return; sortMode = k; store.set(SORT_LS, k); renderDay(); });
+    seg.append(b);
+  }
+  return seg;
+}
+
 async function renderDay(){
   const date = cur.day;
   let data;
@@ -672,10 +689,18 @@ async function renderDay(){
   const dm = index.days.find(x => x.date === date);
   const head = document.createElement("div"); head.className = "dayhead";
   head.innerHTML = `<h2>${fmtDay(date, true)}</h2><p>${dm.n}건 · 채널 ${dm.ch.length}개${dm.photos ? " · 사진 " + dm.photos + "장" : ""}</p>`;
+  head.append(sortSeg());
   main.append(head);
-  for (const grp of groupByChannel(data.items)){
-    if (cur.ch !== "all" && grp.src.key !== cur.ch) continue;
-    main.append(renderGroup(grp));
+  if (sortMode === "ch"){
+    for (const grp of groupByChannel(data.items)){
+      if (cur.ch !== "all" && grp.src.key !== cur.ch) continue;
+      main.append(renderGroup(grp));
+    }
+  } else {
+    const list = data.items.filter(it => cur.ch === "all" || it.src.key === cur.ch).slice()
+      .sort((a, b) => (a.ts || 0) - (b.ts || 0) || a.id - b.id);
+    if (sortMode === "new") list.reverse();
+    for (const it of list) main.append(renderItem(it, null, true));
   }
   lazyImages();
 }
@@ -727,9 +752,13 @@ function markText(root, q){
   }
 }
 
-function renderItem(it, hl){
+function renderItem(it, hl, flat){
   const art = document.createElement("article"); art.className = "it";
   const m = document.createElement("div"); m.className = "meta";
+  if (flat){   // 순서 보기: 채널 이름과 Must See에 담은 시각을 같이 표시
+    const sn = document.createElement("span"); sn.className = "srcn"; sn.textContent = it.src.name; m.append(sn);
+    if (it.orig){ const t = document.createElement("span"); t.textContent = "담음 " + it.time; m.append(t); }
+  }
   const dt = document.createElement("span"); dt.className = "dt";
   dt.textContent = it.orig ? "원글 " + it.orig.slice(5).replace("-", "/") : "작성 " + it.time;
   m.append(dt);
