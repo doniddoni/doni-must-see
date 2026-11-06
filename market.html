@@ -509,7 +509,7 @@ var MS = (function () {
     return fetch("data/meta.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (m) {
       meta = m;
       // 새 화면이 올라갔는데 예전 화면이 캐시돼 있으면 한 번 새로 불러오기
-      var ver = "1155ab3fe57a";
+      var ver = "9e48c9fc4d72";
       if (m.viewer && m.viewer !== ver && ver.indexOf("__") !== 0 && new URLSearchParams(location.search).get("v") !== m.viewer) {
         location.replace(location.pathname + "?v=" + m.viewer + location.hash); return new Promise(function () {});
       }
@@ -1615,7 +1615,8 @@ var Alerts = (function () {
       BASE.map(function (b) { return '<button class="sec" data-al-base="' + b[0] + '" aria-pressed="' + !!c.base[b[0]] + '">' + esc(b[1]) + "</button>"; }).join("") +
       '</div><div class="al-msg">S&P·나스닥은 선물로 보면 프리·애프터·밤 시간까지 잡혀요</div></section>' +
       '<section class="sbox"><h3>③ 내 종목</h3><div id="al-wl">' + watchHTML() + '</div>' +
-      '<div class="al-row"><input id="al-code" class="ninput" placeholder="코드 (005930 / NVDA)" autocapitalize="characters" style="flex-basis:120px"><input id="al-name" class="ninput" placeholder="이름 (선택)" style="flex-basis:110px"><button class="al-btn" id="al-add">추가</button></div></section>' +
+      '<div class="al-row"><input id="al-code" class="ninput" placeholder="코드 (005930 / NVDA)" autocapitalize="characters" style="flex-basis:120px"><input id="al-name" class="ninput" placeholder="이름 (선택)" style="flex-basis:110px"><button class="al-btn" id="al-add">추가</button></div>' +
+      '<div class="al-row"><button class="al-btn" id="al-picks">기업 리스트 ★ 기업 모두 넣기</button><span class="al-msg" id="al-pmsg"></span></div></section>' +
       '<section class="sbox"><h3>④ 기준값</h3><div class="al-msg">하루 = 전일 종가 대비 (기준의 2배·3배를 넘을 때 한 번씩 더) · 30분 = 최근 30분 사이 급등락 (같은 방향은 45분에 한 번)</div>' +
       '<div class="al-th"><span></span><span class="h">하루</span><span class="h">30분</span>' +
       GROUPS.map(function (g) {
@@ -1654,6 +1655,17 @@ var Alerts = (function () {
       $("al-wl").innerHTML = watchHTML(); wireDel(); touch();
     };
     $("al-code").onkeydown = $("al-name").onkeydown = function (e) { if (e.key === "Enter") $("al-add").click(); };
+    $("al-picks").onclick = function () {
+      var list = window.MarketPicks && window.MarketPicks();
+      if (!list) { setMsg($("al-pmsg"), "기업 리스트를 아직 못 불러왔어요. 잠시 뒤 다시 눌러 주세요", "bad"); return; }
+      if (!list.length) { setMsg($("al-pmsg"), "기업 리스트에 ★ 표시한 기업이 없어요", "bad"); return; }
+      var have = {}, n = 0;
+      conf.watch.forEach(function (w) { have[w.c] = 1; have[w.c.replace(/\.(KS|KQ)$/, "")] = 1; });
+      list.forEach(function (x) { var bare = x.c.replace(/\.(KS|KQ)$/, ""); if (have[x.c] || have[bare]) return; conf.watch.push({ c: x.c, n: x.n }); have[x.c] = have[bare] = 1; n++; });
+      $("al-wl").innerHTML = watchHTML(); wireDel();
+      if (n) { touch(); setMsg($("al-pmsg"), "★ 기업 " + n + "개를 넣었어요. 아래 '저장'을 눌러야 서버에 반영돼요", "ok"); }
+      else setMsg($("al-pmsg"), "★ 기업은 이미 모두 들어 있어요", "ok");
+    };
     wireDel();
     $("al-save").onclick = function () {
       readForm();
@@ -2390,6 +2402,18 @@ var Alerts = (function () {
       return { id: c.code, name: c.name, code: c.code, group: krSector(c.industry), sub: [c.industry, c.market, c.product].filter(Boolean).join(" · "), cap: capText("kr", c), capn: c.mcap || 0, next: c.next, last: c.last, tags: c.cov ? ["cov"] : [] };
     });
   }
+  /* 알림 설정에서 쓰는: 기업 리스트에서 ★ 한 기업 → [{c: 야후 기호, n: 이름}] */
+  window.MarketPicks = function () {
+    var D = cal.data; if (!D) return null;
+    var out = [], seen = {};
+    ((D.us && D.us.companies) || []).forEach(function (c) { if (picks.us[c.symbol]) { out.push({ c: c.symbol, n: c.name }); seen[c.symbol] = 1; } });
+    Object.keys(picks.us).forEach(function (s) { if (!seen[s]) out.push({ c: s, n: "" }); });
+    (D.raw.companies || []).forEach(function (c) {
+      if (picks.kr[c.code]) { out.push({ c: c.code + (c.market === "코스닥" ? ".KQ" : c.market === "유가" ? ".KS" : ""), n: c.name }); seen[c.code] = 1; }
+    });
+    Object.keys(picks.kr).forEach(function (k) { if (!seen[k]) out.push({ c: k, n: "" }); });
+    return out;
+  };
   function renderCompanies() {
     var root = document.getElementById("comp");
     if (!cal.data) return;
