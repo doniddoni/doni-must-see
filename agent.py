@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
 import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.8"
+VERSION = "2026-11-06.9"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
@@ -129,6 +129,30 @@ def intraday(df):
     return {"date": wd, "s": s, "names": {k: [n, kd] for _, k, n, kd in BL.INTRA}}
 
 
+# ---------------------------------------------------------------- 미 2년 금리 (야후 2YY=F 는 거래가 거의 없어 CNBC 시세를 1분마다 받아 쌓음)
+CNBC_2Y = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=US2Y"
+           "&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
+
+
+def us2y_point():
+    """→ (창 기준 분, 값) 또는 None"""
+    req = urllib.request.Request(CNBC_2Y, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+    q = json.loads(urllib.request.urlopen(req, timeout=15).read())["FormattedQuoteResult"]["FormattedQuote"][0]
+    v = num(q.get("last"))
+    if v is None or not (0 < v < 20):
+        return None
+    try:
+        t = datetime.strptime(q.get("last_time", "")[:19], "%Y-%m-%dT%H:%M:%S")
+        off = q["last_time"][19:]
+        t = t.replace(tzinfo=timezone(timedelta(hours=int(off[:3]), minutes=int(off[0] + off[4:6])))).astimezone(KST)
+    except Exception:
+        t = now()
+    if now() - t > timedelta(minutes=20):      # 장 밖(시세 멈춤)이면 쌓지 않음
+        return None
+    w = t - timedelta(hours=8)
+    return w.strftime("%Y-%m-%d"), w.hour * 60 + w.minute, round(v, 4)
+
+
 # ---------------------------------------------------------------- 경제지표
 def econ(ff_cache):
     t = now()
@@ -218,6 +242,7 @@ def main():
     alerts = st.get("alerts", [])
     wst = st.get("watch", {})                     # 급변 알림 상태 (보낸 단계·30분 쿨다운·종목 코드 해석)
     wst.setdefault("resolved", {})
+    u2 = st.get("us2y", {"date": "", "pts": []})
     winfo, daily, quotes = {"conf": "아직", "n": 0, "bad": []}, {}, []
     log("시작", VERSION)
     tg(env, "[Doni Live] 실시간 수집을 시작했어요 (" + VERSION + ")") if not st else None
@@ -290,6 +315,18 @@ def main():
                 df = download_1m([t[0] for t in BL.INTRA] + wsyms)
                 intra = intraday(df)
                 t_intra = t0
+                try:
+                    p2 = us2y_point()
+                    if p2:
+                        if u2["date"] != p2[0]:
+                            u2 = {"date": p2[0], "pts": []}
+                        if not u2["pts"] or u2["pts"][-1][0] != p2[1]:
+                            u2["pts"].append([p2[1], p2[2]])
+                except Exception as e:
+                    log("미 2년 실패", type(e).__name__)
+                if u2["date"] == intra.get("date") and u2["pts"] and "US2Y" not in intra["s"]:
+                    intra["s"]["US2Y"] = u2["pts"]
+                    intra["names"]["US2Y"] = ["미 2년", "rate"]
                 changed = True
                 data, daily, qts = W.fetch(wsyms, daily, t0, df=df)
                 quotes = [{"n": n, "s": sym, **qts[sym]} for k, sym, n, g in tl if k.startswith("W:") and sym in qts]
@@ -309,7 +346,7 @@ def main():
                           "alert_conf": winfo.get("conf"), "watching": winfo.get("n", 0), "tg": tg_status()}
                 push(env, box, live, status)
                 t_push = t0
-                STATE.write_text(json.dumps({"announced": sorted(announced)[-500:], "alerts": alerts, "watch": wst}, ensure_ascii=False))
+                STATE.write_text(json.dumps({"announced": sorted(announced)[-500:], "alerts": alerts, "watch": wst, "us2y": u2}, ensure_ascii=False))
                 last_err, errs = "", 0
             if t0 - t_gc > 86400:
                 git("gc", "-q", "--prune=now", check=False) if (WORK / ".git").exists() else None
