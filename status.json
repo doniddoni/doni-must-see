@@ -1,0 +1,25 @@
+{
+ "at": "2026-11-08 03:52",
+ "version": "2026-11-06.9",
+ "intra": {
+  "US2Y": 1190
+ },
+ "intra_date": "2026-11-07",
+ "events": 10,
+ "hot": false,
+ "actuals": 0,
+ "error": "",
+ "alert_conf": "ok",
+ "watching": 56,
+ "tg": {
+  "state": "연결됨",
+  "at": "2026-11-08 03:52",
+  "kw_sent": 0,
+  "kw_chats": 3,
+  "ms_events": 2,
+  "ms_runs": 2,
+  "ms_last": "11-07 15:38",
+  "ms_code": 204,
+  "err": ""
+ }
+}
