@@ -6,10 +6,11 @@ Doni Live — 오라클 서버에서 계속 도는 실시간 시장 수집기.
 - 실제치가 나오면 텔레그램 알림
 - 급변 알림: Must See 마켓 '알림 설정'(지수·종목·기준값·알림 봇)을 5분마다 읽어 크게 움직이면 알림 (watch.py)
 - 텔레그램 실시간 (tg.py, 이 프로그램이 띄우고 죽으면 다시 띄움): 키워드 즉시 알림 + Must See 새 글 → 수집 작업 실행
+- 정해진 시각에 GitHub 작업(뉴스·지수·스포티파이·한터·Must See 등) 직접 실행 (gh_sched.py — 깃허브 예약 실행이 몇 시간씩 늦어서)
 - 결과는 Must See 비밀번호로 암호화해 doni-must-see 저장소 live 브랜치에 올림 (기록이 쌓이지 않게 매번 새로 덮어씀)
 - 상태(시각·건수·오류만, 내용 없음)는 같은 브랜치 status.json
 
-설정: /etc/doni-live.env  (MUSTSEE_PASSWORD, GH_TOKEN, TG_TOKEN, TG_CHAT)
+설정: /etc/doni-live.env  (MUSTSEE_PASSWORD, GH_TOKEN, TG_TOKEN, TG_CHAT, 선택 GH_RUN_TOKEN)
 지표 이름·종목 목록은 bundle_lib.py (telegram-keyword-monitor/mustsee/market_bundle.py 사본)
 """
 
@@ -32,15 +33,17 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bundle_lib as BL  # noqa: E402
+import gh_sched as S  # noqa: E402
 import watch as W  # noqa: E402
 
-VERSION = "2026-11-06.9"
+VERSION = "2026-11-12.1"
 KST = timezone(timedelta(hours=9))
 HOME = Path(os.environ.get("DONI_HOME", "/opt/doni-live"))
 WORK = HOME / "push"
 STATE = HOME / "state.json"
 ENV = Path(os.environ.get("DONI_ENV", "/etc/doni-live.env"))
 META_URL = os.environ.get("DONI_META_URL", "https://doniddoni.github.io/doni-must-see/data/meta.json")
+SYNC_URL = META_URL.rsplit("/", 1)[0] + "/sync.bin"
 REPO = "github.com/doniddoni/doni-must-see.git"
 FLAG = {"US": "🇺🇸", "KR": "🇰🇷", "CN": "🇨🇳", "JP": "🇯🇵", "EU": "🇪🇺", "UK": "🇬🇧", "DE": "🇩🇪"}
 
@@ -244,6 +247,13 @@ def main():
     wst.setdefault("resolved", {})
     u2 = st.get("us2y", {"date": "", "pts": []})
     winfo, daily, quotes = {"conf": "아직", "n": 0, "bad": []}, {}, []
+    def run_token():
+        if env.get("GH_RUN_TOKEN"):
+            return env["GH_RUN_TOKEN"]
+        raw = urllib.request.urlopen(SYNC_URL + "?_=" + str(int(time.time())), timeout=30).read()
+        return json.loads(box.open(raw).decode()).get("run")
+
+    sch = S.Scheduler(HOME / "sched.json", run_token, lambda m: tg(env, m), log)
     log("시작", VERSION)
     tg(env, "[Doni Live] 실시간 수집을 시작했어요 (" + VERSION + ")") if not st else None
 
@@ -260,6 +270,12 @@ def main():
                 log("tg.py 종료됨 → 다시 시작", tgp.returncode)
             tgp = subprocess.Popen([sys.executable, "-u", str(Path(__file__).resolve().parent / "tg.py")])
             t_tg = t0
+        # 정해진 시각 GitHub 작업 실행 (시세 쪽 오류와 따로)
+        try:
+            if sch.tick():
+                changed = True
+        except Exception as e:
+            log("시각표 오류", type(e).__name__, str(e)[:200])
         try:
             # Forex Factory 이번 주 (3시간마다)
             if t0 - ff["at"] > 3 * 3600:
@@ -343,7 +359,8 @@ def main():
                 status = {"at": live["at"], "version": VERSION, "intra": {k: len(v) for k, v in intra.get("s", {}).items()},
                           "intra_date": intra.get("date"), "events": len(events), "hot": hot,
                           "actuals": sum(1 for e in events if e.get("actual")), "error": last_err,
-                          "alert_conf": winfo.get("conf"), "watching": winfo.get("n", 0), "tg": tg_status()}
+                          "alert_conf": winfo.get("conf"), "watching": winfo.get("n", 0), "tg": tg_status(),
+                          "sched": sch.status()}
                 push(env, box, live, status)
                 t_push = t0
                 STATE.write_text(json.dumps({"announced": sorted(announced)[-500:], "alerts": alerts, "watch": wst, "us2y": u2}, ensure_ascii=False))
