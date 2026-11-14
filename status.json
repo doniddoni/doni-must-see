@@ -1,0 +1,44 @@
+{
+ "at": "2026-11-14 21:35",
+ "version": "2026-11-12.1",
+ "intra": {
+  "US2Y": 813
+ },
+ "intra_date": "2026-11-14",
+ "events": 12,
+ "hot": false,
+ "actuals": 5,
+ "error": "",
+ "alert_conf": "ok",
+ "watching": 56,
+ "tg": {
+  "state": "연결됨",
+  "at": "2026-11-14 21:35",
+  "kw_sent": 9,
+  "kw_chats": 3,
+  "ms_events": 5,
+  "ms_runs": 1,
+  "ms_last": "11-14 11:04",
+  "ms_code": 204,
+  "err": ""
+ },
+ "sched": {
+  "auth": {
+   "doniddoni/research-automation": "ok",
+   "doniddoni/telegram-keyword-monitor": "ok"
+  },
+  "today": {
+   "증시 캘린더": "05:30",
+   "시장 지수 1차": "06:15",
+   "뉴스 06:30": "06:30",
+   "포트폴리오 가격": "06:35",
+   "시장 지수 재확인": "07:25",
+   "Must See 오전": "07:55",
+   "스포티파이": "08:40",
+   "한터": "12:30",
+   "뉴스 18:00": "18:00"
+  },
+  "fail": {},
+  "jobs": 12
+ }
+}
